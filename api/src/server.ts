@@ -23,7 +23,7 @@ app.use(express.urlencoded({ extended: true }));
 /*    AUTH     */
 
 app.post("/auth/signin", (req: Request, res: Response,  next: NextFunction) => {
-  const response: SigninData = req.body;
+  const response: SigninData = req.body as SigninData;
   
   const role = authenticate(response.username, response.password);
   
