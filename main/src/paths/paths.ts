@@ -1,7 +1,17 @@
-import environment from "../environment/envs.js";
-
 const Paths = {
-  test: environment.API_URL + "/test",
+  AUTH: {
+    SIGN_IN: "auth/signin",
+  },
+  DASHBOARD_DATA: "data/",
+  INCIDENT: "incident/", 
+  INTERVENTION: "intervention/",
+  POSITIVE_REMARKS: "positive_remarks/",
+  ADMIN: {
+    INCIDENT_TYPE: "admin/incident_type",
+    CASE_STATE: "admin/case_state",
+    USER: "admin/user",
+  },
+  
 } as const;
 
 export default Paths;

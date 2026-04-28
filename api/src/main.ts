@@ -1,6 +1,5 @@
+import environment from './constants/environment';
 import server from './server';
-
-import environment from './common/constants/environment';
 
 /******************************************************************************
                                 Constants

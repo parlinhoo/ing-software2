@@ -1,10 +1,4 @@
-type UserRole = "teacher"|"inspector"|"orientator"|"directive"|"admin"
-
-type User = {
-    username: string,
-    password: string,
-    role: UserRole,
-}
+import { User, UserRole } from "../types/types";
 
 const users: User[] = [
     { username: "teacher", password: "1234", role: "teacher" },
@@ -14,7 +8,10 @@ const users: User[] = [
     { username: "admin", password: "1234", role: "admin" },
 ]
 
-export function authenticate(name: string, password: string) {
-    const isInUsers = users.find((value: User) => (name === value.username && password === value.password));
-    return isInUsers?.role;
+export function authenticate(username: string, password: string): UserRole|undefined {
+    const found = users.find((value: User) => {
+        return value.username === username && value.password === password;
+    })    
+    
+    return found?.role
 }
