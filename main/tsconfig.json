@@ -14,12 +14,14 @@
     "noImplicitOverride": true,
     "noImplicitAny": true,
     "module": "NodeNext",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "sourceMap": true,
 
     "outDir": "dist",
     "rootDir": "./",
 
-    "lib": ["es2022"],
+    "lib": ["es2022", "DOM"],
     "types": ["vite/client"]
   },
 
