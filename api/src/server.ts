@@ -2,6 +2,8 @@ import express, { NextFunction, Request, Response } from 'express';
 
 import { RouteError } from '@src/utils/route-errors';
 import { authenticate } from './auth/auth';
+import HttpStatusCodes from './constants/httpStatusCodes';
+import { Incident } from './types/types';
 
 /******************************************************************************
                                 Setup
@@ -11,6 +13,13 @@ type SigninData = {
   username: string,
   password: string,
 }
+
+// Datos en memoria
+const incidents: Incident[] = [
+  {incidentId: 1, incidentType: "physical", severity: "mild", actors: [{name: "pedro", role: "aggressor"}, {name: "julio", role: "victim"}], date: "2026-04-01", place: "patio", description: "Codazo mientras jugaba"},
+  {incidentId: 3, incidentType: "verbal", severity: "severe", actors: [{name: "horacio", role: "aggressor"}, {name: "pedro", role: "victim"}], date: "2026-03-15", place: "sala 3B", description: "Garabato porque pedro le sacó un lápiz"}
+];
+let nextId = 4;
 
 const app = express();
 
@@ -35,19 +44,45 @@ app.post("/auth/signin", (req: Request, res: Response,  next: NextFunction) => {
 app.put("/incident", (req: Request, res: Response, next: NextFunction) => {
   res.send();
 })
+
 app.post("/incident", (req: Request, res: Response, next: NextFunction) => {
-  res.send();
+  const { incidentType, severity, actors, date, place, description } = req.body;
+
+  // Validar campos obligatorios
+  if (!incidentType || !severity || !date || !place || !description) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
+  }
+
+  // Validar que la fecha no sea futura
+  const incidentDate = new Date(date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (incidentDate > today) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
+  }
+
+  // Crear y guardar el incidente
+  const newIncident: Incident = {
+    incidentId: nextId++,
+    incidentType,
+    severity,
+    actors: actors ?? [],
+    date,
+    place,
+    description,
+  };
+  incidents.push(newIncident);
+
+  res.status(HttpStatusCodes.CREATED).json({ incidentId: newIncident.incidentId });
 })
+
 app.delete("/incident", (req: Request, res: Response, next: NextFunction) => {
   res.send();
 })
-app.get("/incident", (req: Request, res: Response, next: NextFunction) => {
-  res.send(JSON.stringify([
-    {incidentId: 1, incidentType: "physical", severity: "mild", actors: [{name: "pedro", role: "aggresor"}, {name: "julio", role: "victim"}], date: "2026-04-01", place: "patio", description: "Codazo mientras jugaba"},
-    {incidentId: 3, incidentType: "verbal", severity: "severe", actors: [{name: "horacio", role: "aggresor"}, {name: "pedro", role: "victim"}], date: "2026-03-15", place: "sala 3B", description: "Garabato porque pedro le sacó un lápiz"}
-  ]))
-})
 
+app.get("/incident", (req: Request, res: Response, next: NextFunction) => {
+  res.send(JSON.stringify(incidents));
+})
 
 
 /*         INTERVENCIONES         */ 
