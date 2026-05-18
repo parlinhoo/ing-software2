@@ -11,30 +11,12 @@
     
     &__top {
         width: 100%;
+        overflow: hidden;
 
-        display: flex;
-        flex-direction: row;
-        justify-content: center;
-        align-items: center;
-
-        padding-block: 25px;
-
-        background: linear-gradient(135deg, #1A2980 0%, #26D0CE 100%);
-        color: white;
-
-        .login__logo {
-            font-size: 3rem;
-            margin-bottom: 5px;
-            margin-right: 20px;
-        }
-
-        h1 {
-            text-align: end;
-            font-family: "Manrope", sans-serif;
-            font-size: 1.6rem;
-            font-weight: 600;
-            margin: 0px;
-            line-height: 1.2;
+        .login__hero {
+            width: 100%;
+            display: block;
+            object-fit: cover;
         }
     }
     

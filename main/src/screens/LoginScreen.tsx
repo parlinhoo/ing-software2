@@ -1,22 +1,21 @@
 import { TextField, InputAdornment } from "@mui/material";
 import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
+import heroImg from '../assets/img/Hero_Convivencia_Escolar.png'
 import "./css/LoginScreen.scss"
 
-export function LoginScreen() {
+type Props = {
+  onLogin: () => void
+}
+
+export function LoginScreen({ onLogin }: Props) {
     return (
         <section className="login">
             <div className="login__top">
-                <MenuBookIcon className="login__logo" />
-                <h1>
-                    Gestor de Convivencia
-                </h1>
+                <img src={heroImg} alt="Gestión de Convivencia Escolar" className="login__hero" />
             </div>
             <div className="login__main">
-                <p>
-                    Ingrese sus datos de usuario.
-                </p>
+                <p>Ingrese sus datos de usuario.</p>
                 <TextField
                     required
                     className="username-input"
@@ -48,10 +47,7 @@ export function LoginScreen() {
                         }
                     }}
                 />
-                
-                <button className="login-button">
-                    Iniciar sesión
-                </button>
+                <button className="login-button" onClick={onLogin}>Iniciar sesión</button>
             </div>
         </section>
     )

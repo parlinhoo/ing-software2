@@ -1,6 +1,6 @@
-import axiosInstance from "../paths/axiosInstance.js";
-import Paths from "../paths/paths.js";
-import type { UserRole } from "./types.js";
+import axiosInstance from "./axiosInstance.js";
+import Paths from "./paths.js";
+import type { UserRole } from "../types/index.js";
 
 function print(input: any) {
     console.log("[Controlador de Autenticación]", input)
@@ -16,6 +16,5 @@ export async function signIn(username: string, password: string) {
     else {
         print("Credenciales inválidas.");
     }
-    
     return role;
 }

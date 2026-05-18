@@ -1,0 +1,27 @@
+export type Action =
+    "create-incident"|"edit-incident"|"delete-incident"|"set-incident-state"|
+    "add-intervention"|"edit-intervention"|"add-positive-remark"|"get-student-history"|
+    "view-dashboard"|"edit-incident-types"|"edit-case-states"|"edit-users";
+
+export type UserRole = "teacher"|"inspector"|"orientator"|"directive"|"admin";
+
+export type User = {
+    username: string,
+    password: string,
+    role: UserRole,
+};
+
+export type IncidentTypes = "verbal"|"physical"|"harassment"|"discrimination"|"other";
+
+export type Severity = "mild"|"severe"|"verysevere";
+
+export type IncidentRole = "aggresor"|"victim"|"witness";
+
+export type IncidentActor = {
+    name: string,
+    role: IncidentRole,
+}
+
+export type IncidentStatus = "open"|"following"|"closed";
+
+export type InterventionType = "citation"|"derivation"|"tutor_reunion"|"other";

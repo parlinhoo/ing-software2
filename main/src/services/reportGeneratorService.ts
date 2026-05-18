@@ -1,6 +1,6 @@
 import HttpStatusCodes from "../constants/httpStatusCodes.js";
-import axiosInstance from "../paths/axiosInstance.js";
-import Paths from "../paths/paths.js";
+import axiosInstance from "./axiosInstance.js";
+import Paths from "./paths.js";
 
 function print(input: any) {
     console.log("[Generador de Reportes]", input);

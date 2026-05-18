@@ -1,7 +1,7 @@
 import HttpStatusCodes from "../constants/httpStatusCodes.js";
-import axiosInstance from "../paths/axiosInstance.js";
-import Paths from "../paths/paths.js";
-import type { IncidentTypes, Severity, IncidentActor, IncidentStatus } from "./types.js";
+import axiosInstance from "./axiosInstance.js";
+import Paths from "./paths.js";
+import type { IncidentTypes, Severity, IncidentActor, IncidentStatus } from "../types/index.js";
 
 function print(input: any) {
     console.log("[Servicio de Incidentes]", input);

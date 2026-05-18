@@ -1,7 +1,7 @@
-import type { UserRole } from "../auth/types.js";
+import type { UserRole } from "../types/index.js";
 import HttpStatusCodes from "../constants/httpStatusCodes.js";
-import axiosInstance from "../paths/axiosInstance.js";
-import Paths from "../paths/paths.js";
+import axiosInstance from "./axiosInstance.js";
+import Paths from "./paths.js";
 
 function print(input: any) {
     console.log("[Servicio de Usuarios]", input);
