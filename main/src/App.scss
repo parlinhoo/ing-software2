@@ -143,6 +143,10 @@ button { cursor: pointer; border-radius: var(--radio-borde); font-weight: 500; f
 /* Campo requerido */
 .requerido { color: var(--color-peligro); margin-left: 2px; font-weight: 700; }
 
+/* Validación de formulario */
+.mensaje-error { color: var(--color-peligro); font-size: 0.8rem; margin-top: 4px; }
+.input-error { border-color: var(--color-peligro) !important; }
+
 /* Typeahead mejorado */
 .typeahead-input-wrapper {
   display: flex;
