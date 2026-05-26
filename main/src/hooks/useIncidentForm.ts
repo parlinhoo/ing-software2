@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import type { AlumnoAgregado } from '../screens/IncidentFormScreen.tsx'
+import type { AddedStudent } from '../screens/IncidentFormScreen.tsx'
 
 // Esquema de validación para el formulario de incidente
 
@@ -17,16 +17,16 @@ const schema = z.object({
 
 export type IncidentFormData = z.infer<typeof schema>
 
-export function useIncidentForm(alumnos: AlumnoAgregado[]) {
+export function useIncidentForm(alumnos: AddedStudent[]) {
   const { register, handleSubmit, formState: { errors } } = useForm<IncidentFormData>({
     resolver: zodResolver(schema),
   })
 
-  const validarAlumnos = () => {
+  const validateStudents = () => {
     if (alumnos.length === 0) return 'Debe agregar al menos un alumno involucrado'
-    if (alumnos.some(a => a.rol === '')) return 'Todos los alumnos deben tener un rol asignado'
+    if (alumnos.some(a => a.role === '')) return 'Todos los alumnos deben tener un rol asignado'
     return null
   }
 
-  return { register, handleSubmit, errors, validarAlumnos }
+  return { register, handleSubmit, errors, validateStudents }
 }

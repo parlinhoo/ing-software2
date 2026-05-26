@@ -7,6 +7,19 @@ function print(input: any) {
     console.log("[Servicio de Incidentes]", input);
 }
 
+export type StudentData = {
+  name: string,
+  class: string,
+  rut: string,
+}
+
+export async function searchStudents(query: string) {
+
+    const response = await axiosInstance.get<StudentData[]>(`/api/alumnos?q=${query}`);
+    const data = response.data;
+    return data;
+}
+
 export async function registerIncident(
     registerer: string, 
     incidentType: IncidentTypes, 

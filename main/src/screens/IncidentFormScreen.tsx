@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Icon } from '../components/Icon.tsx'
 import { useIncidentForm } from '../hooks/useIncidentForm.ts'
 import minorIcon from '../assets/img/minor.png'
@@ -6,69 +6,92 @@ import seriousIcon from '../assets/img/serious.png'
 import verySerious from '../assets/img/very_serious.png'
 import deleteIcon from '../assets/img/delete.png'
 import searchIcon from '../assets/img/search.png'
+import axiosInstance from '../services/axiosInstance.ts'
+import type { StudentData } from '../services/incidentService.ts'
 
 type Props = {
   onSave: () => void
   onCancel: () => void
 }
 
-const mockAlumnos = [
-  { nombre: 'Juan Soto', curso: '4° Medio A', rut: '20.123.456-7' },
-  { nombre: 'María Pardo', curso: '2° Medio B', rut: '21.654.321-K' },
-  { nombre: 'Pedro Gómez', curso: '3° Medio A', rut: '19.876.543-2' },
+const mockStudents = [
+  { name: 'Juan Soto', class: '4° Medio A', rut: '20.123.456-7' },
+  { name: 'María Pardo', class: '2° Medio B', rut: '21.654.321-K' },
+  { name: 'Pedro Gómez', class: '3° Medio A', rut: '19.876.543-2' },
 ]
 
-export type AlumnoAgregado = {
-  nombre: string
-  rut: string
-  curso: string
-  rol: string
+export type AddedStudent = {
+  name: string,
+  rut: string,
+  class: string,
+  role: string,
 }
 
 export function IncidentFormScreen({ onSave, onCancel }: Props) {
   const [query, setQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
-  const [agregados, setAgregados] = useState<AlumnoAgregado[]>([])
-  const [alumnosError, setAlumnosError] = useState<string | null>(null)
-  const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+  const [added, setAdded] = useState<AddedStudent[]>([])
+  const [studentError, setStudentError] = useState<string | null>(null)
+  const [options, setOptions] = useState<StudentData[]>([]);
 
-  const { register, handleSubmit, errors, validarAlumnos } = useIncidentForm(agregados)
+  const { register, handleSubmit, errors, validateStudents } = useIncidentForm(added)
+  
+  useEffect(() => {
+    if (query.length < 3 || Number.isFinite(parseInt(query.charAt(0))) /*<- si es un rut */ ) {
+      setShowDropdown(false);
+      setIsSearching(false);
+      setOptions([]);
+      return;
+    }
 
-  const resultados = mockAlumnos.filter(a =>
-    a.nombre.toLowerCase().includes(query.toLowerCase()) ||
-    a.rut.includes(query)
-  )
+    setShowDropdown(true);
+    setIsSearching(true);
+
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        // llamada real:
+        // const response = await axiosInstance.get<StudentData[]>(`/api/alumnos?q=${inputValue}`);
+        // const data = response.data();
+        
+        // Mock de datos para el ejemplo
+        const data = mockStudents;
+        setOptions(data);
+      } catch (error) {
+        console.error("Error buscando alumno:", error);
+        setOptions([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [query]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
-    setQuery(val)
-    if (val.length === 0) { setShowDropdown(false); setIsSearching(false); return }
-    setShowDropdown(true)
-    setIsSearching(true)
-    if (searchTimer) clearTimeout(searchTimer)
-    setSearchTimer(setTimeout(() => setIsSearching(false), 600))
+    setQuery(val);
   }
 
-  const agregarAlumno = (alumno: typeof mockAlumnos[0]) => {
-    if (agregados.find(a => a.rut === alumno.rut)) return
-    setAgregados(prev => [...prev, { ...alumno, rol: '' }])
-    setAlumnosError(null)
+  const addStudent = (student: typeof mockStudents[0]) => {
+    if (added.find(a => a.rut === student.rut)) return
+    setAdded(prev => [...prev, { ...student, role: '' }])
+    setStudentError(null)
     setQuery('')
     setShowDropdown(false)
   }
 
-  const cambiarRol = (rut: string, rol: string) => {
-    setAgregados(prev => prev.map(a => a.rut === rut ? { ...a, rol } : a))
+  const changeRole = (rut: string, role: string) => {
+    setAdded(prev => prev.map(a => a.rut === rut ? { ...a, role: role } : a))
   }
 
-  const quitarAlumno = (rut: string) => {
-    setAgregados(prev => prev.filter(a => a.rut !== rut))
+  const removeStudent = (rut: string) => {
+    setAdded(prev => prev.filter(a => a.rut !== rut))
   }
 
   const onSubmit = () => {
-    const errorAlumnos = validarAlumnos()
-    if (errorAlumnos) { setAlumnosError(errorAlumnos); return }
+    const errorAlumnos = validateStudents()
+    if (errorAlumnos) { setStudentError(errorAlumnos); return }
     onSave()
   }
 
@@ -164,18 +187,18 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
                   <ul className="dropdown-resultados">
                     {isSearching ? (
                       <li className="item-resultado item-estado">Buscando...</li>
-                    ) : resultados.length === 0 ? (
+                    ) : options.length === 0 ? (
                       <li className="item-resultado item-sin-resultados">
                         No se encontraron alumnos para "{query}"
                       </li>
                     ) : (
-                      resultados.map(a => (
+                      options.map(a => (
                         <li key={a.rut} className="item-resultado item-alumno">
                           <div className="item-alumno-info">
-                            <strong>{a.nombre}</strong>
-                            <span>{a.curso} — {a.rut}</span>
+                            <strong>{a.name}</strong>
+                            <span>{a.class} — {a.rut}</span>
                           </div>
-                          <button type="button" className="btn-agregar-alumno" onClick={() => agregarAlumno(a)}>
+                          <button type="button" className="btn-agregar-alumno" onClick={() => addStudent(a)}>
                             + Agregar
                           </button>
                         </li>
@@ -185,27 +208,27 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
                 )}
               </div>
 
-              {alumnosError && <span className="mensaje-error">{alumnosError}</span>}
+              {studentError && <span className="mensaje-error">{studentError}</span>}
 
-              {agregados.length > 0 && (
+              {added.length > 0 && (
                 <div className="lista-alumnos-agregados">
                   <h5 className="label-base mt-3">Alumnos Involucrados</h5>
-                  {agregados.map(a => (
+                  {added.map(a => (
                     <div key={a.rut} className="fila-alumno-agregado">
                       <div className="info-alumno">
                         <Icon src={minorIcon} alt="alumno" size="role" />
                         <div className="alumno-datos">
-                          <span className="texto-alumno">{a.nombre}</span>
-                          <span className="texto-alumno-sub">{a.rut} | {a.curso}</span>
+                          <span className="texto-alumno">{a.name}</span>
+                          <span className="texto-alumno-sub">{a.rut} | {a.class}</span>
                         </div>
                       </div>
                       <div className="controles-alumno">
                         <div className="rol-selector">
                           <label className="label-base">Rol <span className="requerido">*</span></label>
                           <select
-                            className={`select-base select-sm ${a.rol === '' ? 'select-pendiente' : ''}`}
-                            value={a.rol}
-                            onChange={e => cambiarRol(a.rut, e.target.value)}
+                            className={`select-base select-sm ${a.role === '' ? 'select-pendiente' : ''}`}
+                            value={a.role}
+                            onChange={e => changeRole(a.rut, e.target.value)}
                           >
                             <option value="" disabled>-- Seleccione rol --</option>
                             <option value="Agresor">Agresor</option>
@@ -213,7 +236,7 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
                             <option value="Testigo">Testigo</option>
                           </select>
                         </div>
-                        <button type="button" className="btn-quitar" onClick={() => quitarAlumno(a.rut)}>
+                        <button type="button" className="btn-quitar" onClick={() => removeStudent(a.rut)}>
                           <Icon src={deleteIcon} alt="quitar" size="action" /> Quitar
                         </button>
                       </div>
