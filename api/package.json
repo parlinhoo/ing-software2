@@ -71,7 +71,7 @@
     "typescript-eslint": "^8.59.0",
     "vitest": "^4.1.5"
   },
-  "prisma_disabled": {
+  "prisma": {
     "seed": "ts-node prisma/seed.ts"
   }
 }
