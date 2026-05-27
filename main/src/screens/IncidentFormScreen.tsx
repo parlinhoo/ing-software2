@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Icon } from '../components/Icon.tsx'
 import { useIncidentForm } from '../hooks/useIncidentForm.ts'
 import minorIcon from '../assets/img/minor.png'
@@ -6,19 +6,14 @@ import seriousIcon from '../assets/img/serious.png'
 import verySerious from '../assets/img/very_serious.png'
 import deleteIcon from '../assets/img/delete.png'
 import searchIcon from '../assets/img/search.png'
-import axiosInstance from '../services/axiosInstance.ts'
 import type { StudentData } from '../services/incidentService.ts'
+import { SearchStudentComponent } from '../components/SearchStudentComponent.tsx'
 
 type Props = {
   onSave: () => void
   onCancel: () => void
 }
 
-const mockStudents = [
-  { name: 'Juan Soto', class: '4° Medio A', rut: '20.123.456-7' },
-  { name: 'María Pardo', class: '2° Medio B', rut: '21.654.321-K' },
-  { name: 'Pedro Gómez', class: '3° Medio A', rut: '19.876.543-2' },
-]
 
 export type AddedStudent = {
   name: string,
@@ -37,43 +32,21 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
 
   const { register, handleSubmit, errors, validateStudents } = useIncidentForm(added)
   
-  useEffect(() => {
-    if (query.length < 3 || Number.isFinite(parseInt(query.charAt(0))) /*<- si es un rut */ ) {
-      setShowDropdown(false);
-      setIsSearching(false);
-      setOptions([]);
-      return;
-    }
-
-    setShowDropdown(true);
+  const onSearchStart = () => {
     setIsSearching(true);
-
-    const delayDebounceFn = setTimeout(async () => {
-      try {
-        // llamada real:
-        // const response = await axiosInstance.get<StudentData[]>(`/api/alumnos?q=${inputValue}`);
-        // const data = response.data();
-        
-        // Mock de datos para el ejemplo
-        const data = mockStudents;
-        setOptions(data);
-      } catch (error) {
-        console.error("Error buscando alumno:", error);
-        setOptions([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 500);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [query]);
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
-    setQuery(val);
+    setShowDropdown(true);
+  }
+  
+  const cancelSearch = () => {
+    setIsSearching(false)
+    setShowDropdown(false)
+  }
+  
+  const onSearchComplete = () => {
+    setIsSearching(false);
   }
 
-  const addStudent = (student: typeof mockStudents[0]) => {
+  const addStudent = (student: StudentData) => {
     if (added.find(a => a.rut === student.rut)) return
     setAdded(prev => [...prev, { ...student, role: '' }])
     setStudentError(null)
@@ -172,13 +145,16 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
               <div className="typeahead-wrapper">
                 <div className="typeahead-input-wrapper">
                   <Icon src={searchIcon} alt="buscar" size="action" />
-                  <input
-                    type="text"
-                    className="input-base typeahead-input"
+                  <SearchStudentComponent 
+                    query={query}
+                    onQueryChange={setQuery}
+                    setOptions={setOptions}
+                    className="input-base typeahead-input" 
                     placeholder="Buscar alumno por RUT o nombre..."
-                    value={query}
-                    onChange={handleSearch}
-                    autoComplete="off"
+                    onInputInvalid={cancelSearch}
+                    onSearchStart={onSearchStart}
+                    onSearchError={cancelSearch}
+                    onSearchComplete={onSearchComplete}
                   />
                   {isSearching && <span className="spinner" />}
                 </div>

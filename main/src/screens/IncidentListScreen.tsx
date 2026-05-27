@@ -4,6 +4,9 @@ import filterIcon from '../assets/img/filter.png'
 import minorIcon from '../assets/img/minor.png'
 import seriousIcon from '../assets/img/serious.png'
 import verySerious from '../assets/img/very_serious.png'
+import { SearchStudentComponent } from '../components/SearchStudentComponent.tsx'
+import type { StudentData } from '../services/incidentService.ts'
+import { useState } from 'react'
 
 type Props = {
   onNew: () => void
@@ -11,6 +14,25 @@ type Props = {
 }
 
 export function IncidentListScreen({ onNew, onDetail }: Props) {
+  const [query, setQuery] = useState("");
+  const [options, setOptions] = useState<StudentData[]>([]);
+
+  const onStudentInputInvalid = () => {
+
+  }
+
+  const onStudentSearchStart = () => {
+    
+  }
+  
+  const onStudentSearchError = () => {
+    
+  }
+  
+  const onStudentSearchComplete = () => {
+    
+  }
+
   return (
     <div className="contenedor-principal">
       <header className="cabecera-vista">
@@ -33,7 +55,17 @@ export function IncidentListScreen({ onNew, onDetail }: Props) {
         <div className="filtros-tabla">
           <div className="input-con-icono">
             <Icon src={searchIcon} alt="buscar" size="action" />
-            <input type="text" className="input-base" placeholder="Buscar por ID, Alumno, RUT..." />
+            <SearchStudentComponent
+              query={query}
+              onQueryChange={setQuery}
+              setOptions={setOptions}
+              className="input-base"
+              placeholder="Buscar por ID, Alumno, RUT..."
+              onInputInvalid={onStudentInputInvalid}
+              onSearchStart={onStudentSearchStart}
+              onSearchComplete={onStudentSearchComplete}
+              onSearchError={onStudentSearchError}
+            />
           </div>
           <div className="input-con-icono">
             <Icon src={filterIcon} alt="filtrar" size="action" />

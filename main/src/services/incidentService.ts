@@ -14,7 +14,9 @@ export type StudentData = {
 }
 
 export async function searchStudents(query: string) {
-
+    // NOTA: hay dos posibles valores que se mandan
+    // RUT: formato XXXXXXXX-X
+    // ALUMNO: query para que la bbdd busque y devuelva todos los alumnos cuyo nombre contenga este string
     const response = await axiosInstance.get<StudentData[]>(`/api/alumnos?q=${query}`);
     const data = response.data;
     return data;
