@@ -15,12 +15,6 @@ type Props = {
   onCancel: () => void
 }
 
-const mockStudents = [
-  { name: 'Juan Soto', class: '4° Medio A', rut: '20.123.456-7' },
-  { name: 'María Pardo', class: '2° Medio B', rut: '21.654.321-K' },
-  { name: 'Pedro Gómez', class: '3° Medio A', rut: '19.876.543-2' },
-]
-
 export type AddedStudent = {
   name: string,
   rut: string,
@@ -49,9 +43,9 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
 
     const delayDebounceFn = setTimeout(async () => {
       try {
-        // TODO: reemplazar con llamada real cuando Vicente suba T06:
+        // TODO: descomentar cuando Vicente suba T06 (GET /api/alumnos/buscar)
         // const data = await searchStudents(query);
-        const data = mockStudents
+        const data: StudentData[] = []
         setOptions(data)
         setSearchError(null)
       } catch {
@@ -69,7 +63,7 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
     setQuery(e.target.value)
   }
 
-  const addStudent = (student: typeof mockStudents[0]) => {
+  const addStudent = (student: StudentData) => {
     if (added.find(a => a.rut === student.rut)) return
     setAdded(prev => [...prev, { ...student, role: '' }])
     setStudentError(null)
