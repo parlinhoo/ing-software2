@@ -12,6 +12,7 @@ export const ROLE_MAP: Record<string, IncidentRole> = {
   'Agresor': 'aggresor',
   'Víctima': 'victim',
   'Testigo': 'witness',
+  'Participante': 'participant',
 }
 
 // Opciones de lugares disponibles

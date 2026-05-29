@@ -17,7 +17,16 @@ export function useStudentSearch(query: string, debounceMs = 500) {
       try {
         // TODO: descomentar cuando Vicente suba T06 (GET /api/alumnos/buscar)
         // const data = await searchStudents(query);
-        const data: StudentData[] = []
+        const mockData: StudentData[] = [
+          { name: 'Juan Soto', rut: '20123456-7', class: '4A' },
+          { name: 'María Pardo', rut: '21234567-8', class: '4B' },
+          { name: 'Pedro Gómez', rut: '22345678-9', class: '4A' },
+          { name: 'Luis Vera', rut: '23456789-0', class: '4C' },
+        ]
+        const data = mockData.filter(s =>
+          s.name.toLowerCase().includes(query.toLowerCase()) ||
+          s.rut.includes(query)
+        )
         setOptions(data)
         setSearchError(null)
       } catch {

@@ -36,6 +36,7 @@ export function AddedStudentsList({ students, onChangeRole, onRemove }: Props) {
                 <option value="Agresor">Agresor</option>
                 <option value="Víctima">Víctima</option>
                 <option value="Testigo">Testigo</option>
+                <option value="Participante">Participante</option>
               </select>
             </div>
             <button type="button" className="btn-quitar" onClick={() => onRemove(a.rut)}>
