@@ -9,6 +9,7 @@ import searchIcon from '../assets/img/search.png'
 import { registerIncident, type StudentData } from '../services/incidentService.ts'
 import type { IncidentFormData } from '../hooks/useIncidentForm.ts'
 import type { Severity, IncidentRole, IncidentActor } from '../types/index.ts'
+import { SEVERITY_MAP, ROLE_MAP, PLACE_OPTIONS, INCIDENT_TYPE_OPTIONS } from '../constants/formMappings.ts'
 
 type Props = {
   onSave: () => void
@@ -78,18 +79,11 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
     setAdded(prev => prev.filter(a => a.rut !== rut))
   }
 
-  const severityMap: Record<string, Severity> = {
-    'Leve': 'mild', 'Grave': 'severe', 'Muy Grave': 'verysevere',
-  }
-  const roleMap: Record<string, IncidentRole> = {
-    'Agresor': 'aggresor', 'Víctima': 'victim', 'Testigo': 'witness',
-  }
-
   const onSubmit = async (data: IncidentFormData) => {
     const studentValidationError = validateStudents()
     if (studentValidationError) { setStudentError(studentValidationError); return }
 
-    const actors: IncidentActor[] = added.map(a => ({ name: a.name, role: roleMap[a.role] as IncidentRole }))
+    const actors: IncidentActor[] = added.map(a => ({ name: a.name, role: ROLE_MAP[a.role] as IncidentRole }))
 
     setIsSubmitting(true)
     setSubmitError(null)
@@ -98,7 +92,7 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
       await registerIncident(
         'usuario-actual',
         data.tipoIncidente,
-        severityMap[data.gravedad] as Severity,
+        SEVERITY_MAP[data.gravedad] as Severity,
         actors,
         `${data.fecha}T${data.hora}`,
         data.lugar,
@@ -138,10 +132,7 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
               <label className="label-base">Lugar <span className="requerido">*</span></label>
               <select className={`select-base ${errors.lugar ? 'input-error' : ''}`} defaultValue="" {...register('lugar')}>
                 <option value="" disabled>-- Seleccione un lugar --</option>
-                <option value="Aula 3">Aula 3</option>
-                <option value="Patio 1">Patio 1</option>
-                <option value="Comedor">Comedor</option>
-                <option value="Biblioteca">Biblioteca</option>
+                {PLACE_OPTIONS.map(place => <option key={place} value={place}>{place}</option>)}
               </select>
               {errors.lugar && <span className="mensaje-error">{errors.lugar.message}</span>}
             </div>
@@ -150,11 +141,7 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
               <label className="label-base">Tipo de Incidente <span className="requerido">*</span></label>
               <select className={`select-base ${errors.tipoIncidente ? 'input-error' : ''}`} defaultValue="" {...register('tipoIncidente')}>
                 <option value="" disabled>-- Seleccione un tipo --</option>
-                <option value="verbal">Agresión verbal</option>
-                <option value="physical">Agresión física</option>
-                <option value="harassment">Acoso escolar</option>
-                <option value="discrimination">Discriminación</option>
-                <option value="other">Otro</option>
+                {INCIDENT_TYPE_OPTIONS.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
               </select>
               {errors.tipoIncidente && <span className="mensaje-error">{errors.tipoIncidente.message}</span>}
             </div>
