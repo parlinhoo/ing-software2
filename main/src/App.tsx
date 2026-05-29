@@ -12,6 +12,7 @@ function App() {
   const [screen, setScreen] = useState<Screen>('login')
   const [toast, setToast] = useState({ visible: false, message: '' })
   const [editingIncidentId, setEditingIncidentId] = useState<string>()
+  const [detailIncidentId, setDetailIncidentId] = useState<string>('I-004')
 
   const showToast = (message: string) => setToast({ visible: true, message })
   const hideToast = useCallback(() => setToast(t => ({ ...t, visible: false })), [])
@@ -38,7 +39,10 @@ function App() {
       {screen === 'list' && (
         <IncidentListScreen
           onNew={() => setScreen('form')}
-          onDetail={() => setScreen('detail')}
+          onDetail={(id) => {
+            setDetailIncidentId(id)
+            setScreen('detail')
+          }}
         />
       )}
       {screen === 'form' && (
@@ -53,9 +57,10 @@ function App() {
       )}
       {screen === 'detail' && (
         <IncidentDetailScreen
+          incidentId={detailIncidentId}
           onClose={() => setScreen('list')}
           onEdit={() => {
-            setEditingIncidentId('I-004')
+            setEditingIncidentId(detailIncidentId)
             setScreen('form')
           }}
         />

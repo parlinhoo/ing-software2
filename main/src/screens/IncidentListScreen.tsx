@@ -10,7 +10,7 @@ import { useState } from 'react'
 
 type Props = {
   onNew: () => void
-  onDetail: () => void
+  onDetail: (incidentId: string) => void
 }
 
 export function IncidentListScreen({ onNew, onDetail }: Props) {
@@ -87,7 +87,7 @@ export function IncidentListScreen({ onNew, onDetail }: Props) {
             </tr>
           </thead>
           <tbody>
-            <tr onClick={onDetail} style={{ cursor: 'pointer' }}>
+            <tr onClick={() => onDetail('I-003')} style={{ cursor: 'pointer' }}>
               <td>I-003</td>
               <td>10/10/2026</td>
               <td>Patio 1</td>
@@ -95,7 +95,7 @@ export function IncidentListScreen({ onNew, onDetail }: Props) {
               <td><span className="badge badge-leve"><Icon src={minorIcon} alt="leve" size="severity" /> Leve</span></td>
               <td>Abierto</td>
             </tr>
-            <tr onClick={onDetail} style={{ cursor: 'pointer' }}>
+            <tr onClick={() => onDetail('I-002')} style={{ cursor: 'pointer' }}>
               <td>I-002</td>
               <td>09/10/2026</td>
               <td>Aula 3</td>
@@ -103,7 +103,7 @@ export function IncidentListScreen({ onNew, onDetail }: Props) {
               <td><span className="badge badge-grave"><Icon src={seriousIcon} alt="grave" size="severity" /> Grave</span></td>
               <td>Cerrado</td>
             </tr>
-            <tr onClick={onDetail} style={{ cursor: 'pointer' }}>
+            <tr onClick={() => onDetail('I-001')} style={{ cursor: 'pointer' }}>
               <td>I-001</td>
               <td>08/10/2026</td>
               <td>Comedor</td>

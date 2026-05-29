@@ -4,11 +4,12 @@ import minorIcon from '../assets/img/minor.png'
 import editIcon from '../assets/img/edit.png'
 
 type Props = {
+  incidentId: string
   onClose: () => void
   onEdit: () => void
 }
 
-export function IncidentDetailScreen({ onClose, onEdit }: Props) {
+export function IncidentDetailScreen({ incidentId, onClose, onEdit }: Props) {
   return (
     <div className="contenedor-principal">
       <div className="alerta-exito">
@@ -17,7 +18,7 @@ export function IncidentDetailScreen({ onClose, onEdit }: Props) {
       </div>
 
       <header className="cabecera-vista mt-2">
-        <h1 className="titulo-principal">Vista de Detalle de Incidente: I-004</h1>
+        <h1 className="titulo-principal">Vista de Detalle de Incidente: {incidentId}</h1>
       </header>
 
       <div className="grid-dos-columnas">
