@@ -41,11 +41,24 @@ export function IncidentFormScreen({ incidentId, onSave, onCancel }: Props) {
 
     const loadIncident = async () => {
       try {
-        const detail = await getIncidentDetail(incidentId)
+        // TODO: descomentar cuando Mario implemente T01
+        // const detail = await getIncidentDetail(incidentId)
+        const detail = {
+          id: incidentId,
+          fecha: '10/10/2026',
+          hora: '10:30',
+          lugar: 'Aula 3',
+          tipoIncidente: 'verbal' as const,
+          descripcion: 'Se reportó un conflicto en el Aula 3. Juan Soto insultó a María Pardo durante el recreo.',
+          gravedad: 'mild' as const,
+          actores: [
+            { name: 'Juan Soto', role: 'aggresor' as const },
+            { name: 'María Pardo', role: 'victim' as const },
+          ],
+        }
         // TODO: cargar datos del incidente en el formulario
         setIsLoading(false)
       } catch {
-        setSubmitError('No se pudo cargar el incidente. Intente nuevamente.')
         setIsLoading(false)
       }
     }
@@ -77,9 +90,10 @@ export function IncidentFormScreen({ incidentId, onSave, onCancel }: Props) {
     setIsSubmitting(true)
     setSubmitError(null)
     try {
-      if (isEditing && incidentId) {
+      if (isEditing) {
         // TODO: reemplazar 'usuario-actual' con el usuario autenticado cuando se conecte el login
-        const numericId = parseInt(String(incidentId).split('-')[1])
+        const id: string = (incidentId || '') as string
+        const numericId = parseInt(id.split('-')[1] ?? '0')
         await editIncident(
           numericId,
           data.tipoIncidente,
