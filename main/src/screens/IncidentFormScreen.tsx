@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Icon } from '../components/Icon.tsx'
 import { useIncidentForm } from '../hooks/useIncidentForm.ts'
 import minorIcon from '../assets/img/minor.png'
@@ -6,14 +6,20 @@ import seriousIcon from '../assets/img/serious.png'
 import verySerious from '../assets/img/very_serious.png'
 import deleteIcon from '../assets/img/delete.png'
 import searchIcon from '../assets/img/search.png'
-import type { StudentData } from '../services/incidentService.ts'
-import { SearchStudentComponent } from '../components/SearchStudentComponent.tsx'
+import { registerIncident, type StudentData } from '../services/incidentService.ts'
+import type { IncidentFormData } from '../hooks/useIncidentForm.ts'
+import type { Severity, IncidentRole, IncidentActor } from '../types/index.ts'
 
 type Props = {
   onSave: () => void
   onCancel: () => void
 }
 
+const mockStudents = [
+  { name: 'Juan Soto', class: '4° Medio A', rut: '20.123.456-7' },
+  { name: 'María Pardo', class: '2° Medio B', rut: '21.654.321-K' },
+  { name: 'Pedro Gómez', class: '3° Medio A', rut: '19.876.543-2' },
+]
 
 export type AddedStudent = {
   name: string,
@@ -24,34 +30,50 @@ export type AddedStudent = {
 
 export function IncidentFormScreen({ onSave, onCancel }: Props) {
   const [query, setQuery] = useState('')
-  const [isSearching, setIsSearching] = useState(false)
-  const [showDropdown, setShowDropdown] = useState(false)
+  const [resolvedQuery, setResolvedQuery] = useState('')
   const [added, setAdded] = useState<AddedStudent[]>([])
   const [studentError, setStudentError] = useState<string | null>(null)
-  const [options, setOptions] = useState<StudentData[]>([]);
+  const [options, setOptions] = useState<StudentData[]>([])
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const isQueryValid = query.length >= 3 && !Number.isFinite(parseInt(query.charAt(0)))
+  const isSearching = isQueryValid && query !== resolvedQuery
+  const showDropdown = isQueryValid
 
   const { register, handleSubmit, errors, validateStudents } = useIncidentForm(added)
-  
-  const onSearchStart = () => {
-    setIsSearching(true);
-    setShowDropdown(true);
-  }
-  
-  const cancelSearch = () => {
-    setIsSearching(false)
-    setShowDropdown(false)
-  }
-  
-  const onSearchComplete = () => {
-    setIsSearching(false);
+
+  useEffect(() => {
+    if (!isQueryValid) return
+
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        // TODO: reemplazar con llamada real cuando Vicente suba T06:
+        // const data = await searchStudents(query);
+        const data = mockStudents
+        setOptions(data)
+        setSearchError(null)
+      } catch {
+        setOptions([])
+        setSearchError('No se pudo conectar con el servidor. Intente nuevamente.')
+      } finally {
+        setResolvedQuery(query)
+      }
+    }, 500)
+
+    return () => clearTimeout(delayDebounceFn)
+  }, [query, isQueryValid])
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setQuery(e.target.value)
   }
 
-  const addStudent = (student: StudentData) => {
+  const addStudent = (student: typeof mockStudents[0]) => {
     if (added.find(a => a.rut === student.rut)) return
     setAdded(prev => [...prev, { ...student, role: '' }])
     setStudentError(null)
     setQuery('')
-    setShowDropdown(false)
   }
 
   const changeRole = (rut: string, role: string) => {
@@ -62,10 +84,38 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
     setAdded(prev => prev.filter(a => a.rut !== rut))
   }
 
-  const onSubmit = () => {
-    const errorAlumnos = validateStudents()
-    if (errorAlumnos) { setStudentError(errorAlumnos); return }
-    onSave()
+  const severityMap: Record<string, Severity> = {
+    'Leve': 'mild', 'Grave': 'severe', 'Muy Grave': 'verysevere',
+  }
+  const roleMap: Record<string, IncidentRole> = {
+    'Agresor': 'aggresor', 'Víctima': 'victim', 'Testigo': 'witness',
+  }
+
+  const onSubmit = async (data: IncidentFormData) => {
+    const studentValidationError = validateStudents()
+    if (studentValidationError) { setStudentError(studentValidationError); return }
+
+    const actors: IncidentActor[] = added.map(a => ({ name: a.name, role: roleMap[a.role] as IncidentRole }))
+
+    setIsSubmitting(true)
+    setSubmitError(null)
+    try {
+      // TODO: reemplazar 'usuario-actual' con el usuario autenticado cuando se conecte el login
+      await registerIncident(
+        'usuario-actual',
+        data.tipoIncidente,
+        severityMap[data.gravedad] as Severity,
+        actors,
+        `${data.fecha}T${data.hora}`,
+        data.lugar,
+        data.descripcion,
+      )
+      onSave()
+    } catch {
+      setSubmitError('No se pudo guardar el incidente. Intente nuevamente.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -100,6 +150,19 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
                 <option value="Biblioteca">Biblioteca</option>
               </select>
               {errors.lugar && <span className="mensaje-error">{errors.lugar.message}</span>}
+            </div>
+
+            <div className="campo">
+              <label className="label-base">Tipo de Incidente <span className="requerido">*</span></label>
+              <select className={`select-base ${errors.tipoIncidente ? 'input-error' : ''}`} defaultValue="" {...register('tipoIncidente')}>
+                <option value="" disabled>-- Seleccione un tipo --</option>
+                <option value="verbal">Agresión verbal</option>
+                <option value="physical">Agresión física</option>
+                <option value="harassment">Acoso escolar</option>
+                <option value="discrimination">Discriminación</option>
+                <option value="other">Otro</option>
+              </select>
+              {errors.tipoIncidente && <span className="mensaje-error">{errors.tipoIncidente.message}</span>}
             </div>
 
             <div className="campo">
@@ -145,16 +208,13 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
               <div className="typeahead-wrapper">
                 <div className="typeahead-input-wrapper">
                   <Icon src={searchIcon} alt="buscar" size="action" />
-                  <SearchStudentComponent 
-                    query={query}
-                    onQueryChange={setQuery}
-                    setOptions={setOptions}
-                    className="input-base typeahead-input" 
+                  <input
+                    type="text"
+                    className="input-base typeahead-input"
                     placeholder="Buscar alumno por RUT o nombre..."
-                    onInputInvalid={cancelSearch}
-                    onSearchStart={onSearchStart}
-                    onSearchError={cancelSearch}
-                    onSearchComplete={onSearchComplete}
+                    value={query}
+                    onChange={handleSearch}
+                    autoComplete="off"
                   />
                   {isSearching && <span className="spinner" />}
                 </div>
@@ -163,6 +223,8 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
                   <ul className="dropdown-resultados">
                     {isSearching ? (
                       <li className="item-resultado item-estado">Buscando...</li>
+                    ) : searchError ? (
+                      <li className="item-resultado item-sin-resultados">{searchError}</li>
                     ) : options.length === 0 ? (
                       <li className="item-resultado item-sin-resultados">
                         No se encontraron alumnos para "{query}"
@@ -224,9 +286,12 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
           </section>
         </div>
 
+        {submitError && <span className="mensaje-error">{submitError}</span>}
         <div className="acciones-formulario">
-          <button type="submit" className="btn-primario">Guardar Incidente</button>
-          <button type="button" className="btn-secundario" onClick={onCancel}>Cancelar</button>
+          <button type="submit" className="btn-primario" disabled={isSubmitting}>
+            {isSubmitting ? 'Guardando...' : 'Guardar Incidente'}
+          </button>
+          <button type="button" className="btn-secundario" onClick={onCancel} disabled={isSubmitting}>Cancelar</button>
         </div>
       </form>
     </div>

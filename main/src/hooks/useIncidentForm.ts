@@ -5,12 +5,15 @@ import type { AddedStudent } from '../screens/IncidentFormScreen.tsx'
 
 // Esquema de validación para el formulario de incidente
 
-const schema = z.object({ 
-  fecha:       z.string().min(1, 'La fecha es obligatoria'),
-  hora:        z.string().min(1, 'La hora es obligatoria'),
-  lugar:       z.string().min(1, 'Debe seleccionar un lugar'),
-  descripcion: z.string().min(10, 'La descripción debe tener al menos 10 caracteres'),
-  gravedad:    z.enum(['Leve', 'Grave', 'Muy Grave'], {
+const schema = z.object({
+  fecha:          z.string().min(1, 'La fecha es obligatoria'),
+  hora:           z.string().min(1, 'La hora es obligatoria'),
+  lugar:          z.string().min(1, 'Debe seleccionar un lugar'),
+  tipoIncidente:  z.enum(['verbal', 'physical', 'harassment', 'discrimination', 'other'], {
+    error: 'Debe seleccionar el tipo de incidente',
+  }),
+  descripcion:    z.string().min(10, 'La descripción debe tener al menos 10 caracteres'),
+  gravedad:       z.enum(['Leve', 'Grave', 'Muy Grave'], {
     error: 'Debe seleccionar la gravedad',
   }),
 })
