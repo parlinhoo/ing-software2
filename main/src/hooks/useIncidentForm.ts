@@ -21,7 +21,7 @@ const schema = z.object({
 export type IncidentFormData = z.infer<typeof schema>
 
 export function useIncidentForm(alumnos: AddedStudent[]) {
-  const { register, handleSubmit, formState: { errors } } = useForm<IncidentFormData>({
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<IncidentFormData>({
     resolver: zodResolver(schema),
   })
 
@@ -31,5 +31,5 @@ export function useIncidentForm(alumnos: AddedStudent[]) {
     return null
   }
 
-  return { register, handleSubmit, errors, validateStudents }
+  return { register, handleSubmit, errors, reset, validateStudents }
 }

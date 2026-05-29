@@ -9,10 +9,19 @@ export const SEVERITY_MAP: Record<string, Severity> = {
 
 // Mapeo de roles: frontend → API
 export const ROLE_MAP: Record<string, IncidentRole> = {
-  'Agresor': 'aggresor',
+  'Agresor': 'aggressor',
   'Víctima': 'victim',
   'Testigo': 'witness',
   'Participante': 'participant',
+}
+
+// Mapeo de roles: API → frontend (español), cubre typo histórico 'aggresor'
+export const ROLE_DISPLAY: Record<string, string> = {
+  aggressor:   'Agresor',
+  aggresor:    'Agresor',
+  victim:      'Víctima',
+  witness:     'Testigo',
+  participant: 'Participante',
 }
 
 // Opciones de lugares disponibles

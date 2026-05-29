@@ -13,6 +13,21 @@ export type StudentData = {
   rut: string,
 }
 
+export type IncidentAPI = {
+  incidentId: number
+  incidentType: string
+  severity: string
+  actors: Array<{ name: string; role: string }>
+  date: string
+  place: string
+  description: string
+}
+
+export async function fetchIncidents(): Promise<IncidentAPI[]> {
+  const response = await axiosInstance.get<IncidentAPI[]>(Paths.INCIDENT)
+  return response.data
+}
+
 export type IncidentDetail = {
   id: string,
   fecha: string,
@@ -28,22 +43,16 @@ export async function searchStudents(query: string) {
     // NOTA: hay dos posibles valores que se mandan
     // RUT: formato XXXXXXXX-X
     // ALUMNO: query para que la bbdd busque y devuelva todos los alumnos cuyo nombre contenga este string
-    const response = await axiosInstance.get<StudentData[]>(`/api/alumnos?q=${query}`);
+    const response = await axiosInstance.get<StudentData[]>(`students/search?q=${query}`);
     const data = response.data;
     return data;
 }
 
-export async function getIncidentDetail(incidentId: string): Promise<IncidentDetail> {
+export async function getIncidentDetail(incidentId: string): Promise<IncidentAPI> {
     print(`Petición de detalle de incidente ${incidentId} enviada...`);
-    const response = await axiosInstance.get<IncidentDetail>(`/api/incidentes/${incidentId}`);
-
-    if (response.status === HttpStatusCodes.OK) {
-        print(`Detalle de incidente ${incidentId} obtenido con éxito.`);
-        return response.data;
-    } else {
-        print(`Ha ocurrido un error al obtener el detalle del incidente ${incidentId}.`);
-        throw new Error();
-    }
+    const response = await axiosInstance.get<IncidentAPI>(`incident/${incidentId}`);
+    print(`Detalle de incidente ${incidentId} obtenido con éxito.`);
+    return response.data;
 }
 
 export async function registerIncident(
@@ -66,9 +75,9 @@ export async function registerIncident(
     }
 
     print("Petición de creado de incidente enviada...");
-    const response = await axiosInstance.put(Paths.INCIDENT, data);
+    const response = await axiosInstance.post(Paths.INCIDENT, data);
 
-    if (response.status === HttpStatusCodes.OK) {
+    if (response.status === HttpStatusCodes.CREATED) {
         print("Incidente creado con éxito.");
         return response.data.incidentId;
     }
@@ -98,7 +107,7 @@ export async function editIncident(
     }
 
     print(`Petición de editado de incidente ${incidentId} enviada...`);
-    const response = await axiosInstance.post(Paths.INCIDENT, data);
+    const response = await axiosInstance.put(Paths.INCIDENT, data);
 
     if (response.status === HttpStatusCodes.OK) {
         print("Incidente editado con éxito.");

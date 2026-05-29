@@ -25,6 +25,18 @@ const app = express();
 
 // **** Middleware **** //
 
+// CORS middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -42,7 +54,30 @@ app.post("/auth/signin", (req: Request, res: Response,  next: NextFunction) => {
 /*    INCIDENTE     */
 
 app.put("/incident", (req: Request, res: Response, next: NextFunction) => {
-  res.send();
+  const { incidentId, incidentType, severity, actors, date, place, description } = req.body;
+
+  // Validar campos obligatorios
+  if (!incidentId || !incidentType || !severity || !date || !place || !description) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
+  }
+
+  // Encontrar y actualizar el incidente
+  const index = incidents.findIndex(i => i.incidentId === incidentId);
+  if (index === -1) {
+    return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
+  }
+
+  incidents[index] = {
+    incidentId,
+    incidentType,
+    severity,
+    actors: actors ?? [],
+    date,
+    place,
+    description,
+  };
+
+  res.status(HttpStatusCodes.OK).json({ incidentId });
 })
 
 app.post("/incident", (req: Request, res: Response, next: NextFunction) => {
@@ -82,6 +117,18 @@ app.delete("/incident", (req: Request, res: Response, next: NextFunction) => {
 
 app.get("/incident", (req: Request, res: Response, next: NextFunction) => {
   res.send(JSON.stringify(incidents));
+})
+
+app.get("/incident/:id", (req: Request, res: Response, next: NextFunction) => {
+  const { id } = req.params;
+  const incidentId = parseInt(id);
+
+  const incident = incidents.find(i => i.incidentId === incidentId);
+  if (!incident) {
+    return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
+  }
+
+  res.status(HttpStatusCodes.OK).json(incident);
 })
 
 

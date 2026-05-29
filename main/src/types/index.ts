@@ -15,7 +15,7 @@ export type IncidentTypes = "verbal"|"physical"|"harassment"|"discrimination"|"o
 
 export type Severity = "mild"|"severe"|"verysevere";
 
-export type IncidentRole = "aggresor"|"victim"|"witness"|"participant";
+export type IncidentRole = "aggressor"|"victim"|"witness"|"participant";
 
 export type IncidentActor = {
     name: string,
