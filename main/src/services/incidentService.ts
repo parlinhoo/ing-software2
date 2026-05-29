@@ -13,6 +13,17 @@ export type StudentData = {
   rut: string,
 }
 
+export type IncidentDetail = {
+  id: string,
+  fecha: string,
+  hora: string,
+  lugar: string,
+  tipoIncidente: IncidentTypes,
+  descripcion: string,
+  gravedad: Severity,
+  actores: Array<{ name: string, role: IncidentActor['role'] }>,
+}
+
 export async function searchStudents(query: string) {
     // NOTA: hay dos posibles valores que se mandan
     // RUT: formato XXXXXXXX-X
@@ -20,6 +31,19 @@ export async function searchStudents(query: string) {
     const response = await axiosInstance.get<StudentData[]>(`/api/alumnos?q=${query}`);
     const data = response.data;
     return data;
+}
+
+export async function getIncidentDetail(incidentId: string): Promise<IncidentDetail> {
+    print(`Petición de detalle de incidente ${incidentId} enviada...`);
+    const response = await axiosInstance.get<IncidentDetail>(`/api/incidentes/${incidentId}`);
+
+    if (response.status === HttpStatusCodes.OK) {
+        print(`Detalle de incidente ${incidentId} obtenido con éxito.`);
+        return response.data;
+    } else {
+        print(`Ha ocurrido un error al obtener el detalle del incidente ${incidentId}.`);
+        throw new Error();
+    }
 }
 
 export async function registerIncident(

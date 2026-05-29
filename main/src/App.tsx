@@ -11,6 +11,7 @@ type Screen = 'login' | 'list' | 'form' | 'detail'
 function App() {
   const [screen, setScreen] = useState<Screen>('login')
   const [toast, setToast] = useState({ visible: false, message: '' })
+  const [editingIncidentId, setEditingIncidentId] = useState<string>()
 
   const showToast = (message: string) => setToast({ visible: true, message })
   const hideToast = useCallback(() => setToast(t => ({ ...t, visible: false })), [])
@@ -42,14 +43,21 @@ function App() {
       )}
       {screen === 'form' && (
         <IncidentFormScreen
+          incidentId={editingIncidentId}
           onSave={handleSave}
-          onCancel={() => setScreen('list')}
+          onCancel={() => {
+            setScreen('list')
+            setEditingIncidentId('')
+          }}
         />
       )}
       {screen === 'detail' && (
         <IncidentDetailScreen
           onClose={() => setScreen('list')}
-          onEdit={() => setScreen('form')}
+          onEdit={() => {
+            setEditingIncidentId('I-004')
+            setScreen('form')
+          }}
         />
       )}
     </div>
