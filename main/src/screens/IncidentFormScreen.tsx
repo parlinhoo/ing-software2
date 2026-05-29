@@ -7,6 +7,7 @@ import type { Severity, IncidentRole, IncidentActor } from '../types/index.ts'
 import { SEVERITY_MAP, ROLE_MAP } from '../constants/formMappings.ts'
 import { IncidentDetailFields } from '../components/IncidentDetailFields.tsx'
 import { StudentSearchSection } from '../components/StudentSearchSection.tsx'
+import { SuccessModal } from '../components/SuccessModal.tsx'
 
 type Props = {
   onSave: () => void
@@ -26,6 +27,7 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
   const [studentError, setStudentError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [showSuccess, setShowSuccess] = useState(false)
 
   const { options, searchError, isSearching, showDropdown } = useStudentSearch(query)
   const { register, handleSubmit, errors, validateStudents } = useIncidentForm(added)
@@ -64,7 +66,8 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
         data.lugar,
         data.descripcion,
       )
-      onSave()
+      setShowSuccess(true)
+      setTimeout(onSave, 2000)
     } catch {
       setSubmitError('No se pudo guardar el incidente. Intente nuevamente.')
     } finally {
@@ -106,6 +109,12 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
           <button type="button" className="btn-secundario" onClick={onCancel} disabled={isSubmitting}>Cancelar</button>
         </div>
       </form>
+
+      <SuccessModal
+        isOpen={showSuccess}
+        title="Incidente Creado"
+        onClose={onSave}
+      />
     </div>
   )
 }
