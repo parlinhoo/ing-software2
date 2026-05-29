@@ -1,0 +1,233 @@
+// Esquema de la base de datos - Sistema de Convivencia Escolar
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------------------------------------------------
+// Catálogos (configurables por el administrador)
+// -------------------------------------------------------------
+
+model Rol {
+  id          BigInt   @id @default(autoincrement())
+  nombre      String   @unique @db.VarChar(50)
+  descripcion String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  usuarios Usuario[]
+
+  @@map("rol")
+}
+
+model TipoIncidente {
+  id          BigInt   @id @default(autoincrement())
+  nombre      String   @unique @db.VarChar(100)
+  descripcion String?  @db.Text
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  incidentes Incidente[]
+
+  @@map("tipo_incidente")
+}
+
+model EstadoCaso {
+  id          BigInt   @id @default(autoincrement())
+  nombre      String   @unique @db.VarChar(50)
+  descripcion String?  @db.Text
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  incidentes Incidente[]
+
+  @@map("estado_caso")
+}
+
+// La columna nivel (1, 2, 3) permite comparar gravedades entre sí.
+model Gravedad {
+  id          BigInt   @id @default(autoincrement())
+  nombre      String   @unique @db.VarChar(50)
+  nivel       Int      @unique
+  descripcion String?  @db.Text
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  incidentes Incidente[]
+
+  @@map("gravedad")
+}
+
+model RolEnConflicto {
+  id          BigInt   @id @default(autoincrement())
+  nombre      String   @unique @db.VarChar(50)
+  descripcion String?  @db.Text
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  participaciones ParticipacionEnIncidente[]
+
+  @@map("rol_en_conflicto")
+}
+
+// Parámetros ajustables del sistema, guardados como pares clave-valor.
+model ConfiguracionSistema {
+  id          BigInt   @id @default(autoincrement())
+  clave       String   @unique @db.VarChar(100)
+  valor       String   @db.Text
+  descripcion String?  @db.Text
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("configuracion_sistema")
+}
+
+// -------------------------------------------------------------
+// Entidades principales
+// -------------------------------------------------------------
+
+model Usuario {
+  id             BigInt   @id @default(autoincrement())
+  nombre         String   @db.VarChar(150)
+  correo         String   @unique @db.VarChar(255)
+  contrasenaHash String   @map("contrasena_hash") @db.VarChar(255)
+  rol            Rol      @relation(fields: [rolId], references: [id])
+  rolId          BigInt   @map("rol_id")
+  activo         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  incidentes           Incidente[]
+  intervenciones       Intervencion[]
+  anotacionesPositivas AnotacionPositiva[]
+
+  @@index([correo])
+  @@index([rolId])
+  @@map("usuario")
+}
+
+// El estudiante no inicia sesión; solo es sujeto de registro.
+model Estudiante {
+  id            BigInt   @id @default(autoincrement())
+  run           String   @unique @db.VarChar(12)
+  nombre        String   @db.VarChar(150)
+  curso         String   @db.VarChar(20)
+  anioAcademico Int      @map("anio_academico")
+  activo        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  participaciones      ParticipacionEnIncidente[]
+  anotacionesPositivas AnotacionPositiva[]
+
+  @@index([run])
+  @@index([curso, anioAcademico])
+  @@index([nombre])
+  @@map("estudiante")
+}
+
+model Incidente {
+  id          BigInt   @id @default(autoincrement())
+  fecha       DateTime
+  lugar       String   @db.VarChar(200)
+  descripcion String   @db.Text
+
+  // gravedadId es obligatorio: no se puede guardar un incidente sin gravedad.
+  gravedad   Gravedad @relation(fields: [gravedadId], references: [id])
+  gravedadId BigInt   @map("gravedad_id")
+
+  tipoIncidente   TipoIncidente @relation(fields: [tipoIncidenteId], references: [id])
+  tipoIncidenteId BigInt        @map("tipo_incidente_id")
+
+  estadoCaso   EstadoCaso @relation(fields: [estadoCasoId], references: [id])
+  estadoCasoId BigInt     @map("estado_caso_id")
+
+  registradoPor   Usuario @relation(fields: [registradoPorId], references: [id])
+  registradoPorId BigInt  @map("registrado_por")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  // Borrado lógico: con fecha, cuenta como eliminado sin perder el dato.
+  eliminadoEn DateTime? @map("eliminado_en")
+
+  participaciones ParticipacionEnIncidente[]
+  intervenciones  Intervencion[]
+
+  @@index([fecha])
+  @@index([gravedadId])
+  @@index([estadoCasoId])
+  @@index([registradoPorId])
+  @@map("incidente")
+}
+
+// Tabla intermedia: vincula un estudiante con un incidente y su rol.
+model ParticipacionEnIncidente {
+  id BigInt @id @default(autoincrement())
+
+  incidente   Incidente @relation(fields: [incidenteId], references: [id], onDelete: Cascade)
+  incidenteId BigInt    @map("incidente_id")
+
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id])
+  estudianteId BigInt     @map("estudiante_id")
+
+  rolEnConflicto   RolEnConflicto @relation(fields: [rolEnConflictoId], references: [id])
+  rolEnConflictoId BigInt         @map("rol_en_conflicto_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([incidenteId, estudianteId, rolEnConflictoId], name: "uq_participacion_unica")
+  @@index([incidenteId])
+  @@index([estudianteId])
+  @@map("participacion_en_incidente")
+}
+
+model Intervencion {
+  id BigInt @id @default(autoincrement())
+
+  incidente   Incidente @relation(fields: [incidenteId], references: [id], onDelete: Cascade)
+  incidenteId BigInt    @map("incidente_id")
+
+  realizadaPor   Usuario @relation(fields: [realizadaPorId], references: [id])
+  realizadaPorId BigInt  @map("realizada_por")
+
+  fecha       DateTime
+  tipo        String    @db.VarChar(100)
+  descripcion String    @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  eliminadoEn DateTime? @map("eliminado_en")
+
+  @@index([incidenteId])
+  @@index([fecha])
+  @@map("intervencion")
+}
+
+model AnotacionPositiva {
+  id BigInt @id @default(autoincrement())
+
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id])
+  estudianteId BigInt     @map("estudiante_id")
+
+  registradaPor   Usuario @relation(fields: [registradaPorId], references: [id])
+  registradaPorId BigInt  @map("registrada_por")
+
+  fecha       DateTime
+  descripcion String    @db.Text
+  // Marca si ya se usó para compensar una anotación negativa.
+  compensada  Boolean   @default(false)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  eliminadoEn DateTime? @map("eliminado_en")
+
+  @@index([estudianteId])
+  @@index([fecha])
+  @@map("anotacion_positiva")
+}
