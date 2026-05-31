@@ -14,7 +14,8 @@
     "start": "cross-env DOTENV_CONFIG_PATH=./config/.env.production node -r dotenv/config -r module-alias/register ./dist/main.js",
     "sync": "delay 1s && browser-sync start --config bs-config.js",
     "test": "cross-env NODE_ENV=test vitest",
-    "type-check": "tsc -b --noEmit"
+    "type-check": "tsc -b --noEmit",
+    "db:setup": "prisma migrate dev --name init && prisma db seed"
   },
   "engines": {
     "node": ">=16.0.0"
@@ -49,7 +50,7 @@
     "@types/jsonfile": "^6.1.4",
     "@types/module-alias": "^2.0.4",
     "@types/morgan": "^1.9.10",
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.9.1",
     "@types/supertest": "^7.2.0",
     "browser-sync": "^3.0.4",
     "concurrently": "^9.2.1",

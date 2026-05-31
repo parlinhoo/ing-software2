@@ -2,48 +2,58 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-/**
- * Busca un estudiante por RUT (búsqueda exacta)
- */
-export async function getStudentByRut(run: string) {
+export type StudentData = {
+  rut: string,
+  name: string,
+  class: string,
+}
+
+export async function getStudentByRUN(run: string): Promise<StudentData|null> {
   try {
     const student = await prisma.estudiante.findUnique({
       where: { run },
       select: {
-        id: true,
         run: true,
         nombre: true,
         curso: true,
-        anioAcademico: true,
-        activo: true,
       },
     });
-    return student;
+    if (!student) return null;
+    return {
+      rut: student.run,
+      name: student.nombre,
+      class: student.curso,
+    };
   } catch (error) {
-    console.error('Error getStudentByRut', error);
+    console.error('Error getStudentByRUN', error);
     throw error;
   }
 }
 
-/**
- * Busca estudiantes por nombre (búsqueda exacta)
- */
-export async function getStudentByName(nombre: string) {
+export async function getStudentsByName(nombre: string): Promise<StudentData[]> {
   try {
     const students = await prisma.estudiante.findMany({
-      where: { nombre },
+      where: {
+        nombre: {
+          contains: nombre,
+          mode: 'insensitive',
+        },
+      },
       select: {
-        id: true,
         run: true,
         nombre: true,
         curso: true,
-        anioAcademico: true,
-        activo: true,
       },
     });
-    return students;
+    return students.map((student: {run: string, nombre: string, curso: string}) => {
+      return {
+        rut: student.run,
+        name: student.nombre,
+        class: student.curso,
+      }
+    });
   } catch (error) {
     console.error('Error getStudentByName', error);
-    throw error;
+    return [];
   }
 }

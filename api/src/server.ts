@@ -4,6 +4,8 @@ import { RouteError } from '@src/utils/route-errors';
 import { authenticate } from './auth/auth';
 import HttpStatusCodes from './constants/httpStatusCodes';
 import { Incident } from './types/types';
+import { isValidRut } from './utils/formatUtils';
+import { getStudentByRUN, getStudentsByName, StudentData } from './services/studentService';
 
 /******************************************************************************
                                 Setup
@@ -15,10 +17,7 @@ type SigninData = {
 }
 
 // Datos en memoria
-const incidents: Incident[] = [
-  {incidentId: 1, incidentType: "physical", severity: "mild", actors: [{name: "pedro", role: "aggressor"}, {name: "julio", role: "victim"}], date: "2026-04-01", place: "patio", description: "Codazo mientras jugaba"},
-  {incidentId: 3, incidentType: "verbal", severity: "severe", actors: [{name: "horacio", role: "aggressor"}, {name: "pedro", role: "victim"}], date: "2026-03-15", place: "sala 3B", description: "Garabato porque pedro le sacó un lápiz"}
-];
+const incidents: Incident[] = [];
 let nextId = 4;
 
 const app = express();
@@ -49,6 +48,37 @@ app.post("/auth/signin", (req: Request, res: Response,  next: NextFunction) => {
   const role = authenticate(response.username, response.password);
   
   res.send(role ?? "null");
+})
+
+/*   ESTUDIANTE     */
+
+app.get("/students/search", async (req: Request, res: Response,  next: NextFunction) => {
+  const response = req.query as {q?: string};
+
+  if (!response.q) {
+    res.json([]);
+    return;
+  }
+
+  const query: string = response.q;
+  try {
+    let students: StudentData[] = [];
+
+    if (isValidRut(query)) {
+      const student = await getStudentByRUN(query);
+      if (student) {
+        students = [student];
+      }
+    } else {
+      students = await getStudentsByName(query);
+    }
+
+    res.json(students);
+    
+  } catch (e) {
+    console.error("Error al buscar estudiantes:", e);
+    res.status(HttpStatusCodes.INTERNAL_SERVER_ERROR).end(); 
+  }
 })
 
 /*    INCIDENTE     */
@@ -121,7 +151,7 @@ app.get("/incident", (req: Request, res: Response, next: NextFunction) => {
 
 app.get("/incident/:id", (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
-  const incidentId = parseInt(id);
+  const incidentId = parseInt(id as string);
 
   const incident = incidents.find(i => i.incidentId === incidentId);
   if (!incident) {

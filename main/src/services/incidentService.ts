@@ -39,12 +39,19 @@ export type IncidentDetail = {
   actores: Array<{ name: string, role: IncidentActor['role'] }>,
 }
 
-export async function searchStudents(query: string) {
+export async function searchStudents(query: string): Promise<StudentData[]> {
     // NOTA: hay dos posibles valores que se mandan
     // RUT: formato XXXXXXXX-X
     // ALUMNO: query para que la bbdd busque y devuelva todos los alumnos cuyo nombre contenga este string
-    const response = await axiosInstance.get<StudentData[]>(`students/search?q=${query}`);
-    const data = response.data;
+    let data: StudentData[] = [];
+    try {
+        const response = await axiosInstance.get<StudentData[]>(`students/search?q=${query}`);
+        data = response.data;
+        console.log(response);
+    }
+    catch (e) {
+        console.log(e);
+    }
     return data;
 }
 

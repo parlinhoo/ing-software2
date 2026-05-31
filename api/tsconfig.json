@@ -12,7 +12,7 @@
       "@src/*": ["./src/*"]
     },
     "useUnknownInCatchVariables": false,
-    "types": ["vitest/globals"]
+    "types": ["vitest/globals", "node"]
   },
   "ts-node": {
     "swc": true,
