@@ -1,4 +1,5 @@
 import express, { NextFunction, Request, Response } from 'express';
+import { Prisma, PrismaClient } from '@prisma/client';  
 
 import { RouteError } from '@src/utils/route-errors';
 import { authenticate } from './auth/auth';
@@ -7,6 +8,7 @@ import { Incident } from './types/types';
 import { isValidRut } from './utils/formatUtils';
 import { getStudentByRUN, getStudentsByName, StudentData } from './services/studentService';
 
+const prisma = new PrismaClient();
 /******************************************************************************
                                 Setup
 ******************************************************************************/
@@ -160,6 +162,76 @@ app.get("/incident/:id", (req: Request, res: Response, next: NextFunction) => {
 
   res.status(HttpStatusCodes.OK).json(incident);
 })
+
+
+// Registro de incidentes con persistencia real en BD (T05, T07)
+// Esta ruta crea el incidente y sus participaciones de forma atómica usando Prisma.
+app.post("/incident/register", async (req: Request, res: Response, next: NextFunction) => {
+  const { registerer, incidentType, severity, actors, date, place, description } = req.body;
+
+  // T05 - Test 2: severity (y los demás campos obligatorios) son requeridos
+  if (!registerer || !incidentType || !severity || !date || !place || !description) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
+  }
+
+  const incidentDate = new Date(date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (incidentDate > today) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
+  }
+
+  try {
+    // Buscar gravedadId por nombre ("Leve", "Grave", "Muy grave")
+    const gravedad = await prisma.gravedad.findFirstOrThrow({
+      where: { nombre: severity },
+    });
+    const tipoIncidente = await prisma.tipoIncidente.findFirstOrThrow({
+      where: { nombre: incidentType },
+    });
+    const estadoCaso = await prisma.estadoCaso.findFirstOrThrow({
+      where: { nombre: 'Abierto' },
+    });
+
+    // T07 - transacción atómica: incidente + participaciones
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const incidente = await tx.incidente.create({
+        data: {
+          fecha: incidentDate,
+          lugar: place,
+          descripcion: description,
+          gravedadId: gravedad.id,
+          tipoIncidenteId: tipoIncidente.id,
+          estadoCasoId: estadoCaso.id,
+          registradoPorId: BigInt(registerer),
+        },
+      });
+
+      if (actors && actors.length > 0) {
+        for (const actor of actors) {
+          const rol = await tx.rolEnConflicto.findFirstOrThrow({
+            where: { nombre: actor.role },
+          });
+          await tx.participacionEnIncidente.create({
+            data: {
+              incidenteId: incidente.id,
+              estudianteId: BigInt(actor.estudianteId),
+              rolEnConflictoId: rol.id,
+            },
+          });
+        }
+      }
+
+      return incidente;
+    });
+
+    res.status(HttpStatusCodes.CREATED).json({ incidentId: result.id.toString() });
+
+  } catch (error) {
+    // T07 - Test 2: si falla algo dentro de $transaction, Prisma hace rollback automático
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al crear el incidente"));
+  }
+});
 
 
 /*         INTERVENCIONES         */ 

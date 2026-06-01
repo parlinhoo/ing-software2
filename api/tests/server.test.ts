@@ -2,136 +2,103 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 
 vi.mock('@src/services/studentService', () => ({
-  getStudentByRut: vi.fn(),
-  getStudentByName: vi.fn(),
+  getStudentByRUN: vi.fn(),
+  getStudentsByName: vi.fn(),
 }));
 
 import app from '@src/server';
 import * as studentService from '@src/services/studentService';
 
-type Student = {
-  id: number;
-  run: string;
-  nombre: string;
-  curso: string;
-  anioAcademico: number;
-  activo: boolean;
+type StudentData = {
+  rut: string;
+  name: string;
+  class: string;
 };
 
-const mockedStudentService = studentService as {
-  getStudentByRut: any;
-  getStudentByName: any;
+const mockedStudentService = studentService as unknown as {
+  getStudentByRUN: ReturnType<typeof vi.fn>;
+  getStudentsByName: ReturnType<typeof vi.fn>;
 };
 
 describe('API server', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
-  describe('GET /students/by-rut', () => {
-    it('returns student data when the rut exists', async () => {
-      const expectedStudent: Student = {
-        id: 1,
-        run: '12345678-9',
-        nombre: 'Juan Pérez',
-        curso: '4B',
-        anioAcademico: 2026,
-        activo: true,
+  describe('GET /students/search - búsqueda por RUT', () => {
+    it('retorna el estudiante envuelto en array cuando el RUT existe', async () => {
+      const expectedStudent: StudentData = {
+        rut: '11111111-1',
+        name: 'Juan Pérez',
+        class: '4B',
       };
 
-      mockedStudentService.getStudentByRut.mockResolvedValueOnce(expectedStudent);
+      mockedStudentService.getStudentByRUN.mockResolvedValueOnce(expectedStudent);
 
-      const response = await request(app).get('/students/by-rut').query({ run: '12345678-9' });
+      const response = await request(app).get('/students/search').query({ q: '11111111-1' });
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual(expectedStudent);
-      expect(mockedStudentService.getStudentByRut).toHaveBeenCalledWith('12345678-9');
+      expect(response.body).toEqual([expectedStudent]);
+      expect(mockedStudentService.getStudentByRUN).toHaveBeenCalledWith('11111111-1');
     });
 
-    it('returns 404 when the student does not exist', async () => {
-      mockedStudentService.getStudentByRut.mockResolvedValueOnce(null);
+    it('retorna array vacío cuando el RUT no existe', async () => {
+      mockedStudentService.getStudentByRUN.mockResolvedValueOnce(null);
 
-      const response = await request(app).get('/students/by-rut').query({ run: '99999999-9' });
+      const response = await request(app).get('/students/search').query({ q: '99999999-9' });
 
-      expect(response.status).toBe(404);
-      expect(response.body).toEqual({ error: 'Estudiante no encontrado' });
-    });
-
-    it('returns 400 when query parameter is missing', async () => {
-      const response = await request(app).get('/students/by-rut');
-
-      expect(response.status).toBe(400);
-      expect(response.body).toEqual({ error: "El parámetro 'run' es requerido y debe ser un string" });
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([]);
     });
   });
 
-  describe('GET /students/by-name', () => {
-    it('returns student list when the name exists', async () => {
-      const expectedStudents = [
-        {
-          id: 1,
-          run: '12345678-9',
-          nombre: 'Juan Pérez',
-          curso: '4B',
-          anioAcademico: 2026,
-          activo: true,
-        },
+  describe('GET /students/search - búsqueda por nombre', () => {
+    it('retorna lista de estudiantes cuando el nombre coincide', async () => {
+      const expectedStudents: StudentData[] = [
+        { rut: '12345678-9', name: 'Juan Pérez', class: '4B' },
       ];
 
-      mockedStudentService.getStudentByName.mockResolvedValueOnce(expectedStudents);
+      mockedStudentService.getStudentsByName.mockResolvedValueOnce(expectedStudents);
 
-      const response = await request(app).get('/students/by-name').query({ nombre: 'Juan Pérez' });
+      const response = await request(app).get('/students/search').query({ q: 'Juan Pérez' });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(expectedStudents);
-      expect(mockedStudentService.getStudentByName).toHaveBeenCalledWith('Juan Pérez');
+      expect(mockedStudentService.getStudentsByName).toHaveBeenCalledWith('Juan Pérez');
     });
 
-    it('returns multiple students when more than one name match exists', async () => {
-      const expectedStudents = [
-        {
-          id: 1,
-          run: '12345678-9',
-          nombre: 'Juan Pérez',
-          curso: '4B',
-          anioAcademico: 2026,
-          activo: true,
-        },
-        {
-          id: 2,
-          run: '98765432-1',
-          nombre: 'Juan Pérez',
-          curso: '3A',
-          anioAcademico: 2026,
-          activo: true,
-        },
+    it('retorna varios estudiantes cuando hay más de una coincidencia por nombre', async () => {
+      const expectedStudents: StudentData[] = [
+        { rut: '12345678-9', name: 'Juan Pérez', class: '4B' },
+        { rut: '98765432-1', name: 'Juan Pérez', class: '3A' },
       ];
 
-      mockedStudentService.getStudentByName.mockResolvedValueOnce(expectedStudents);
+      mockedStudentService.getStudentsByName.mockResolvedValueOnce(expectedStudents);
 
-      const response = await request(app).get('/students/by-name').query({ nombre: 'Juan Pérez' });
+      const response = await request(app).get('/students/search').query({ q: 'Juan Pérez' });
 
       expect(response.status).toBe(200);
       expect(Array.isArray(response.body)).toBe(true);
       expect(response.body).toHaveLength(2);
       expect(response.body).toEqual(expectedStudents);
-      expect(mockedStudentService.getStudentByName).toHaveBeenCalledWith('Juan Pérez');
     });
 
-    it('returns 404 when no students are found', async () => {
-      mockedStudentService.getStudentByName.mockResolvedValueOnce([]);
+    it('retorna array vacío cuando no hay estudiantes con ese nombre', async () => {
+      mockedStudentService.getStudentsByName.mockResolvedValueOnce([]);
 
-      const response = await request(app).get('/students/by-name').query({ nombre: 'No Existe' });
+      const response = await request(app).get('/students/search').query({ q: 'No Existe' });
 
-      expect(response.status).toBe(404);
-      expect(response.body).toEqual({ error: 'No se encontraron estudiantes con ese nombre' });
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([]);
     });
+  });
 
-    it('returns 400 when query parameter is missing', async () => {
-      const response = await request(app).get('/students/by-name');
+  describe('GET /students/search - sin parámetro', () => {
+    it('retorna array vacío cuando no se envía el parámetro q', async () => {
+      const response = await request(app).get('/students/search');
 
-      expect(response.status).toBe(400);
-      expect(response.body).toEqual({ error: "El parámetro 'nombre' es requerido y debe ser un string" });
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([]);
     });
   });
 });
