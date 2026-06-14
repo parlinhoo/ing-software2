@@ -8,6 +8,18 @@ import { Incident } from './types/types';
 import { isValidRut } from './utils/formatUtils';
 import { getStudentByRUN, getStudentsByName, StudentData } from './services/studentService';
 
+type Intervention = {
+  id: number,
+  incidentId: number,
+  registerer: string,
+  date: string,
+  interventionType: string,
+  description: string,
+}
+
+const interventions: Intervention[] = [];
+let nextInterventionId = 1;
+
 const prisma = new PrismaClient();
 /******************************************************************************
                                 Setup
@@ -237,12 +249,83 @@ app.post("/incident/register", async (req: Request, res: Response, next: NextFun
 /*         INTERVENCIONES         */ 
 
 app.put("/intervention", (req: Request, res: Response, next: NextFunction) => {
-  res.send();
-})
-app.post("/intervention", (req: Request, res: Response, next: NextFunction) => {
-  res.send();
+  const { registerer, incidentId, date, interventionType, description } = req.body;
+
+  // Validar campos obligatorios
+  if (!registerer || !incidentId || !date || !interventionType || !description) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
+  }
+
+  // Validar que la fecha no sea futura
+  const interventionDate = new Date(date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (interventionDate > today) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
+  }
+
+  // Buscar el incidente
+  const incident = incidents.find(i => i.incidentId === Number(incidentId));
+  if (!incident) {
+    return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
+  }
+
+  // Crear intervención
+  const newIntervention: Intervention = {
+    id: nextInterventionId++,
+    incidentId: Number(incidentId),
+    registerer,
+    date,
+    interventionType,
+    description,
+  };
+  interventions.push(newIntervention);
+
+  res.status(HttpStatusCodes.CREATED).json({ id: newIntervention.id });
 })
 
+app.post("/intervention", (req: Request, res: Response, next: NextFunction) => {
+  const { incidentId, interventionId, date, interventionType, description } = req.body;
+
+  if (!incidentId || !interventionId) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
+  }
+
+  const intervention = interventions.find(
+    i => i.id === Number(interventionId) && i.incidentId === Number(incidentId)
+  );
+  if (!intervention) {
+    return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Intervención no encontrada"));
+  }
+
+  if (date) {
+    const interventionDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (interventionDate > today) {
+      return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
+    }
+    intervention.date = date;
+  }
+  if (interventionType) intervention.interventionType = interventionType;
+  if (description) intervention.description = description;
+
+  res.status(HttpStatusCodes.OK).json({ id: intervention.id });
+})
+
+app.get("/intervention", (req: Request, res: Response, next: NextFunction) => {
+  const { incidentId } = req.query;
+
+  if (!incidentId) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Falta incidentId"));
+  }
+
+  const result = interventions
+    .filter(i => i.incidentId === Number(incidentId))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  res.json(result);
+})
 /*        ANOTACIONES POSITIVAS      */
 
 app.put("/positive_remark", (req: Request, res: Response, next: NextFunction) => {
