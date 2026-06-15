@@ -2,7 +2,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';  
 
 import { RouteError } from '@src/utils/route-errors';
-import { authenticate } from './auth/auth';
+import { authenticate, generateUserJWT, SignInData } from './auth/authService';
 import HttpStatusCodes from './constants/httpStatusCodes';
 import { Incident } from './types/types';
 import { isValidRut } from './utils/formatUtils';
@@ -12,11 +12,6 @@ const prisma = new PrismaClient();
 /******************************************************************************
                                 Setup
 ******************************************************************************/
-
-type SigninData = {
-  username: string,
-  password: string,
-}
 
 // Datos en memoria
 const incidents: Incident[] = [];
@@ -44,12 +39,29 @@ app.use(express.urlencoded({ extended: true }));
 
 /*    AUTH     */
 
-app.post("/auth/signin", (req: Request, res: Response,  next: NextFunction) => {
-  const response: SigninData = req.body as SigninData;
-  
-  const role = authenticate(response.username, response.password);
-  
-  res.send(role ?? "null");
+app.post("/auth/signin",async (req: Request, res: Response,  next: NextFunction) => {
+  const data = req.body as Partial<SignInData>;
+ 
+  if (!data.email || !data.password) {
+    throw new RouteError(
+        HttpStatusCodes.BAD_REQUEST, 
+        "Faltan credenciales: email y password son requeridos."
+    );
+  }
+
+  const loginData: SignInData = {
+    email: data.email,
+    password: data.password,
+  };
+
+  try {
+    const user = await authenticate(loginData.email, loginData.password);
+    const token = generateUserJWT(user.id, user.role.id);
+    const payload = { user, token }
+    res.status(HttpStatusCodes.OK).json(payload);
+  } catch (error) {
+    next(error);
+  }
 })
 
 /*   ESTUDIANTE     */
@@ -291,6 +303,7 @@ app.delete("/admin/user", (req: Request, res: Response, next: NextFunction) => {
 app.use((err: Error, _: Request, res: Response, next: NextFunction) => {
   if (err instanceof RouteError) {
     res.status(err.status).json({ error: err.message });
+    return;
   }
   return next(err);
 });
