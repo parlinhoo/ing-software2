@@ -239,9 +239,46 @@ app.post("/incident/register", async (req: Request, res: Response, next: NextFun
 app.put("/intervention", (req: Request, res: Response, next: NextFunction) => {
   res.send();
 })
-app.post("/intervention", (req: Request, res: Response, next: NextFunction) => {
-  res.send();
-})
+
+//####################NUEVO T-15######################################
+app.post("/intervention", async (req: Request, res: Response, next: NextFunction) => {
+  // TODO (cuando T-03 esté listo): sacar realizadaPor de req.user.userId
+  //                                 y agregar middleware requireRole(['orientador'])
+  const { incidenteId, realizadaPor, tipo, fecha, descripcion } = req.body;
+
+  // Validación de campos obligatorios (CA1)
+  if (!incidenteId || !realizadaPor || !tipo || !fecha || !descripcion) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
+  }
+
+  const interventionDate = new Date(fecha);
+  if (isNaN(interventionDate.getTime())) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Fecha inválida"));
+  }
+
+  try {
+    const incidente = await prisma.incidente.findUnique({
+      where: { id: BigInt(incidenteId) },
+    });
+    if (!incidente) {
+      return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
+    }
+
+    const intervencion = await prisma.intervencion.create({
+      data: {
+        incidenteId: BigInt(incidenteId),
+        realizadaPorId: BigInt(realizadaPor),
+        fecha: interventionDate,
+        tipo,
+        descripcion,
+      },
+    });
+
+    res.status(HttpStatusCodes.CREATED).json({ interventionId: intervencion.id.toString() });
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al crear la intervención"));
+  }
+});
 
 /*        ANOTACIONES POSITIVAS      */
 
