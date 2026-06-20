@@ -139,6 +139,8 @@ model Incidente {
   fecha       DateTime
   lugar       String   @db.VarChar(200)
   descripcion String   @db.Text
+  anulado         Boolean  @default(false)
+  motivoAnulacion String?  @db.Text @map("motivo_anulacion")
 
   // gravedadId es obligatorio: no se puede guardar un incidente sin gravedad.
   gravedad   Gravedad @relation(fields: [gravedadId], references: [id])
