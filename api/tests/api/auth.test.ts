@@ -1,4 +1,4 @@
-import { generateUserJWT, validateToken } from "@src/auth/authService";
+import { generateUserJWT, requireAuth } from "@src/auth/authService";
 import HttpStatusCodes from "@src/constants/httpStatusCodes";
 import { RouteError } from "@src/utils/route-errors";
 import jwt from "jsonwebtoken"
@@ -26,7 +26,7 @@ describe('Auth JWT Functions', () => {
     });
 
     it('debería lanzar RouteError si no hay cabecera de autorización', () => {
-      expect(() => validateToken(mockReq, mockRes, mockNext)).toThrow(
+      expect(() => requireAuth(mockReq, mockRes, mockNext)).toThrow(
         expect.objectContaining({
           status: HttpStatusCodes.UNAUTHORIZED,
           message: 'Acceso denegado. Token no proporcionado.'
@@ -37,7 +37,7 @@ describe('Auth JWT Functions', () => {
     it('debería lanzar RouteError si la cabecera no empieza con Bearer', () => {
       mockReq.headers.authorization = 'TokenInvalido 123456';
 
-      expect(() => validateToken(mockReq, mockRes, mockNext)).toThrow(RouteError);
+      expect(() => requireAuth(mockReq, mockRes, mockNext)).toThrow(RouteError);
     });
 
     it('debería inyectar el usuario en request y llamar a next() si el token es válido', () => {
@@ -46,7 +46,7 @@ describe('Auth JWT Functions', () => {
       
       vi.mocked(jwt.verify).mockReturnValue(mockPayload as any);
 
-      validateToken(mockReq, mockRes, mockNext);
+      requireAuth(mockReq, mockRes, mockNext);
 
       expect(jwt.verify).toHaveBeenCalledWith('token_valido', 'secreto_falso_para_tests');
       expect(mockReq.user).toEqual(mockPayload);
@@ -61,7 +61,7 @@ describe('Auth JWT Functions', () => {
         throw new jwt.TokenExpiredError('jwt expired', new Date());
       });
 
-      expect(() => validateToken(mockReq, mockRes, mockNext)).toThrow(
+      expect(() => requireAuth(mockReq, mockRes, mockNext)).toThrow(
         expect.objectContaining({
           status: HttpStatusCodes.UNAUTHORIZED,
           message: 'La sesión ha expirado. Vuelve a iniciar sesión.'
@@ -77,7 +77,7 @@ describe('Auth JWT Functions', () => {
         throw new Error('Firma inválida');
       });
 
-      expect(() => validateToken(mockReq, mockRes, mockNext)).toThrow(
+      expect(() => requireAuth(mockReq, mockRes, mockNext)).toThrow(
         expect.objectContaining({
           status: HttpStatusCodes.UNAUTHORIZED,
           message: 'Token inválido o corrupto.'

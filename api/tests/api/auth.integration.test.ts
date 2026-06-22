@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { generateUserJWT, validateToken } from '@src/auth/authService';
+import { generateUserJWT, requireAuth } from '@src/auth/authService';
 
 vi.mock('@src/environment', () => ({
   default: { JWT_SECRET: 'abe4508163968bb56cf7a26e6ddf0bc679e0c102a0ed7d969e3f1bb51f0b5cf9' }
@@ -27,7 +27,7 @@ describe('Integración JWT: Generación y Validación', () => {
 
     mockReq.headers.authorization = `Bearer ${tokenGenerado}`;
 
-    validateToken(mockReq, mockRes, mockNext);
+    requireAuth(mockReq, mockRes, mockNext);
 
     expect(mockNext).toHaveBeenCalledOnce();
 

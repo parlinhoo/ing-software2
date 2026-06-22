@@ -13,6 +13,10 @@ interface JwtPayload {
     roleId: string;
 }
 
+export const ValidRoles = ["Docente", "Inspector", "Administrador", "Equipo Directivo", "Orientador"] as const;
+
+export type Roles = (typeof ValidRoles)[number];
+
 export interface CustomRequest extends Request {
     user?: JwtPayload;
 }
@@ -83,24 +87,49 @@ export function generateUserJWT(userId: number, roleId: number): string {
   return token;
 }
 
-export function validateToken(req: CustomRequest, _: Response, next: NextFunction) {
-    const authHeader = req.headers.authorization;
+// wrapper para que quede mejor y mas limpio
+export function requireRoles(...roles: Roles[]) {
+    async function requireAuth(req: CustomRequest, _: Response, next: NextFunction) {
+        const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Acceso denegado. Token no proporcionado.");
-    }
-
-    const token = authHeader.split(' ')[1];
-
-    try {
-        const payloadDecodificado = jwt.verify(token, environment.JWT_SECRET) as JwtPayload;
-
-        req.user = payloadDecodificado;
-        next();
-    } catch (error) {
-        if (error instanceof jwt.TokenExpiredError) {
-            throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "La sesión ha expirado. Vuelve a iniciar sesión.");
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Acceso denegado. Token no proporcionado.");
         }
-        throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Token inválido o corrupto.");
+
+        const token = authHeader.split(' ')[1];
+
+        try {
+            const payloadDecodificado = jwt.verify(token, environment.JWT_SECRET) as JwtPayload;
+            req.user = payloadDecodificado;
+
+            const fetchedRole = await prisma.rol.findUnique({
+                where: {
+                    id: Number(req.user.roleId),
+                },
+                select: {
+                    nombre: true,
+                }
+            });
+            
+            if (!fetchedRole) {
+                throw new RouteError(HttpStatusCodes.NOT_FOUND, "El rol especificado no existe en la base de datos.");
+            }
+
+            console.log("nombre:", fetchedRole.nombre);
+            
+            if (!roles.includes(fetchedRole.nombre as Roles)) {
+                throw new RouteError(HttpStatusCodes.FORBIDDEN, "Acceso denegado. No tienes los permisos necesarios.");
+            }
+
+            next();
+        } catch (error) {
+            if (error instanceof jwt.TokenExpiredError) {
+                error = new RouteError(HttpStatusCodes.UNAUTHORIZED, "La sesión ha expirado. Vuelve a iniciar sesión.");
+            }
+            next(error);
+            return;
+        }
     }
+    
+    return requireAuth;
 }

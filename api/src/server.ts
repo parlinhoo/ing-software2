@@ -2,7 +2,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';  
 
 import { RouteError } from '@src/utils/route-errors';
-import { authenticate, generateUserJWT, SignInData } from './auth/authService';
+import { authenticate, CustomRequest, generateUserJWT, requireRoles, SignInData } from './auth/authService';
 import HttpStatusCodes from './constants/httpStatusCodes';
 import { Incident } from './types/types';
 import { isValidRut } from './utils/formatUtils';
@@ -66,7 +66,7 @@ app.post("/auth/signin",async (req: Request, res: Response,  next: NextFunction)
 
 /*   ESTUDIANTE     */
 
-app.get("/students/search", async (req: Request, res: Response,  next: NextFunction) => {
+app.get("/students/search", requireRoles("Docente", "Inspector"), async (req: CustomRequest, res: Response,  next: NextFunction) => {
   const response = req.query as {q?: string};
 
   if (!response.q) {
@@ -97,7 +97,7 @@ app.get("/students/search", async (req: Request, res: Response,  next: NextFunct
 
 /*    INCIDENTE     */
 
-app.put("/incident", (req: Request, res: Response, next: NextFunction) => {
+app.put("/incident", requireRoles("Docente", "Inspector"), (req: Request, res: Response, next: NextFunction) => {
   const { incidentId, incidentType, severity, actors, date, place, description } = req.body;
 
   // Validar campos obligatorios
@@ -124,46 +124,16 @@ app.put("/incident", (req: Request, res: Response, next: NextFunction) => {
   res.status(HttpStatusCodes.OK).json({ incidentId });
 })
 
-app.post("/incident", (req: Request, res: Response, next: NextFunction) => {
-  const { incidentType, severity, actors, date, place, description } = req.body;
 
-  // Validar campos obligatorios
-  if (!incidentType || !severity || !date || !place || !description) {
-    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
-  }
-
-  // Validar que la fecha no sea futura
-  const incidentDate = new Date(date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (incidentDate > today) {
-    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
-  }
-
-  // Crear y guardar el incidente
-  const newIncident: Incident = {
-    incidentId: nextId++,
-    incidentType,
-    severity,
-    actors: actors ?? [],
-    date,
-    place,
-    description,
-  };
-  incidents.push(newIncident);
-
-  res.status(HttpStatusCodes.CREATED).json({ incidentId: newIncident.incidentId });
-})
-
-app.delete("/incident", (req: Request, res: Response, next: NextFunction) => {
+app.delete("/incident", requireRoles("Docente", "Inspector"), (req: Request, res: Response, next: NextFunction) => {
   res.send();
 })
 
-app.get("/incident", (req: Request, res: Response, next: NextFunction) => {
+app.get("/incident", requireRoles("Docente", "Orientador", "Equipo Directivo"), (req: Request, res: Response, next: NextFunction) => {
   res.send(JSON.stringify(incidents));
 })
 
-app.get("/incident/:id", (req: Request, res: Response, next: NextFunction) => {
+app.get("/incident/:id", requireRoles("Docente", "Orientador", "Equipo Directivo"), (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
   const incidentId = parseInt(id as string);
 
@@ -178,7 +148,7 @@ app.get("/incident/:id", (req: Request, res: Response, next: NextFunction) => {
 
 // Registro de incidentes con persistencia real en BD (T05, T07)
 // Esta ruta crea el incidente y sus participaciones de forma atómica usando Prisma.
-app.post("/incident/register", async (req: Request, res: Response, next: NextFunction) => {
+app.post("/incident/register", requireRoles("Docente", "Inspector"), async (req: Request, res: Response, next: NextFunction) => {
   const { registerer, incidentType, severity, actors, date, place, description } = req.body;
 
   // T05 - Test 2: severity (y los demás campos obligatorios) son requeridos
@@ -302,6 +272,7 @@ app.delete("/admin/user", (req: Request, res: Response, next: NextFunction) => {
 // Add error handler
 app.use((err: Error, _: Request, res: Response, next: NextFunction) => {
   if (err instanceof RouteError) {
+    console.log(`error ${err.status}:`, err.message);
     res.status(err.status).json({ error: err.message });
     return;
   }
