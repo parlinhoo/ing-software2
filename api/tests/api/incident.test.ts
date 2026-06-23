@@ -86,21 +86,26 @@ describe('POST /incident - validaciones de API', () => {
   });
 
   it('el incidente creado aparece en GET /incident', async () => {
+    // Usa el flujo con persistencia en BD (POST /incident/register),
+    // ya que GET /incident ahora lee de la base de datos, no de memoria.
+    const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
     const post = await request(app)
-      .post('/incident')
+      .post('/incident/register')
       .send({
-        incidentType: 'physical',
-        severity: 'mild',
-        date: '2026-05-01',
+        registerer: '7',
+        incidentType: 'Agresión verbal',
+        severity: 'Leve',
+        date: ayer,
         place: 'Patio',
         description: 'Empujones',
         actors: [],
       });
-    const id = post.body.incidentId;
+    const id = post.body.incidentId; // string (BigInt serializado)
 
     const get = await request(app).get('/incident');
     const incidents = JSON.parse(get.text);
-    const ids = incidents.map((i: { incidentId: number }) => i.incidentId);
+    const ids = incidents.map((i: { id: string }) => i.id);
     expect(ids).toContain(id);
   });
 

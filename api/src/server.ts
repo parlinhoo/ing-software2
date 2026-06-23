@@ -18,7 +18,7 @@ type SigninData = {
   password: string,
 }
 
-// Datos en memoria
+// Datos en memoria (legado Sprint 1 - pendiente consolidar con BD)
 const incidents: Incident[] = [];
 let nextId = 4;
 
@@ -142,27 +142,85 @@ app.post("/incident", (req: Request, res: Response, next: NextFunction) => {
 
   res.status(HttpStatusCodes.CREATED).json({ incidentId: newIncident.incidentId });
 })
-
-app.delete("/incident", (req: Request, res: Response, next: NextFunction) => {
-  res.send();
-})
-
-app.get("/incident", (req: Request, res: Response, next: NextFunction) => {
-  res.send(JSON.stringify(incidents));
-})
-
-app.get("/incident/:id", (req: Request, res: Response, next: NextFunction) => {
+// Anulacion logica de incidentes (T-12)
+app.delete("/incident/:id", async (req: Request, res: Response, next: NextFunction) => {
+  // TODO (cuando T-03 esté listo): agregar middleware requireRole(['directivo'])
   const { id } = req.params;
-  const incidentId = parseInt(id as string);
+  const { motivo } = req.body;
 
-  const incident = incidents.find(i => i.incidentId === incidentId);
-  if (!incident) {
-    return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
+  if (!motivo || typeof motivo !== 'string' || motivo.trim() === '') {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "El motivo de anulación es obligatorio"));
   }
 
-  res.status(HttpStatusCodes.OK).json(incident);
+  try {
+    const incidente = await prisma.incidente.findUnique({
+      where: { id: BigInt(id as string) },
+    });
+    if (!incidente) {
+      return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
+    }
+
+    await prisma.incidente.update({
+      where: { id: BigInt(id as string) },
+      data: {
+        anulado: true,
+        motivoAnulacion: motivo,
+      },
+    });
+
+    res.status(HttpStatusCodes.OK).json({ message: "Incidente anulado correctamente" });
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al anular el incidente"));
+  }
 })
 
+app.get("/incident", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const incidentes = await prisma.incidente.findMany({
+      where: { anulado: false },
+    });
+    // Serializar BigInt a string para el JSON
+    const result = incidentes.map(i => ({
+      ...i,
+      id: i.id.toString(),
+      gravedadId: i.gravedadId.toString(),
+      tipoIncidenteId: i.tipoIncidenteId.toString(),
+      estadoCasoId: i.estadoCasoId.toString(),
+      registradoPorId: i.registradoPorId.toString(),
+    }));
+    res.status(HttpStatusCodes.OK).json(result);
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al consultar incidentes"));
+  }
+})
+
+app.get("/incident/:id", async (req: Request, res: Response, next: NextFunction) => {
+  const { id } = req.params;
+
+  try {
+    const incidente = await prisma.incidente.findUnique({
+      where: { id: BigInt(id as string) },
+    });
+
+    if (!incidente || incidente.anulado) {
+      return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
+    }
+
+    // Serializar BigInt a string para el JSON
+    const result = {
+      ...incidente,
+      id: incidente.id.toString(),
+      gravedadId: incidente.gravedadId.toString(),
+      tipoIncidenteId: incidente.tipoIncidenteId.toString(),
+      estadoCasoId: incidente.estadoCasoId.toString(),
+      registradoPorId: incidente.registradoPorId.toString(),
+    };
+
+    res.status(HttpStatusCodes.OK).json(result);
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al consultar el incidente"));
+  }
+})
 
 // Registro de incidentes con persistencia real en BD (T05, T07)
 // Esta ruta crea el incidente y sus participaciones de forma atómica usando Prisma.
@@ -239,9 +297,46 @@ app.post("/incident/register", async (req: Request, res: Response, next: NextFun
 app.put("/intervention", (req: Request, res: Response, next: NextFunction) => {
   res.send();
 })
-app.post("/intervention", (req: Request, res: Response, next: NextFunction) => {
-  res.send();
-})
+
+// Registro de intervenciones (T-15)
+app.post("/intervention", async (req: Request, res: Response, next: NextFunction) => {
+  // TODO (cuando T-03 este listo): sacar realizadaPor de req.user.userId
+  //                                 y agregar middleware requireRole(['orientador'])
+  const { incidenteId, realizadaPor, tipo, fecha, descripcion } = req.body;
+
+  // Validacion de campos obligatorios (CA1)
+  if (!incidenteId || !realizadaPor || !tipo || !fecha || !descripcion) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
+  }
+
+  const interventionDate = new Date(fecha);
+  if (isNaN(interventionDate.getTime())) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Fecha inválida"));
+  }
+
+  try {
+    const incidente = await prisma.incidente.findUnique({
+      where: { id: BigInt(incidenteId) },
+    });
+    if (!incidente) {
+      return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
+    }
+
+    const intervencion = await prisma.intervencion.create({
+      data: {
+        incidenteId: BigInt(incidenteId),
+        realizadaPorId: BigInt(realizadaPor),
+        fecha: interventionDate,
+        tipo,
+        descripcion,
+      },
+    });
+
+    res.status(HttpStatusCodes.CREATED).json({ interventionId: intervencion.id.toString() });
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al crear la intervención"));
+  }
+});
 
 /*        ANOTACIONES POSITIVAS      */
 
