@@ -1,5 +1,4 @@
-import type { Action, UserRole } from "../types/index.js";
-
+/*
 export function getActionDescription(act: Action): string {
     switch (act) {
         case "create-incident": return "Registrar incidente.";
@@ -19,15 +18,16 @@ export function getActionDescription(act: Action): string {
 
 export function getRoleActions(role: UserRole): Action[] {
     switch (role) {
-        case "teacher":
+        case "teacher":// Docente
             return ["create-incident", "edit-incident", "delete-incident", "add-positive-remark", "get-student-history"];
-        case "inspector":
+        case "inspector": // Inspector
             return ["create-incident", "edit-incident", "delete-incident"];
-        case "orientator":
+        case "orientator": // Orientador
             return ["add-intervention", "edit-intervention", "set-incident-state", "view-dashboard", "get-student-history"];
-        case "directive":
+        case "directive": // Equipo Directivo
             return ["get-student-history", "view-dashboard"];
-        case "admin":
+        case "admin": // Administrador
             return ["edit-users", "edit-incident-types", "edit-case-states"];
     }
 }
+*/

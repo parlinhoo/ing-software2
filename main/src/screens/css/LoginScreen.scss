@@ -27,12 +27,13 @@
         justify-content: start;
         align-items: center;
         padding: 35px;
+        padding-top: 20px;
         box-sizing: border-box;
 
         p {
             font-family: "Public Sans", sans-serif;
             color: #555;
-            margin-top: 0;
+            margin-top: 0px;
             margin-bottom: 25px;
         }
 
@@ -45,7 +46,17 @@
             }
         }
 
+        .login-alert {
+            width: 90%;
+            margin-bottom: 25px;
+            border-radius: 10px;
+            font-family: "Public Sans", sans-serif;
+        }
+
         .login-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
             width: 100%;
             height: 50px;
             background: linear-gradient(135deg, #1A2980 0%, #26D0CE 100%);
@@ -65,6 +76,13 @@
 
             &:active {
                 transform: translateY(0);
+            }
+
+            &:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+                transform: none;
+                box-shadow: none;
             }
         }
     }

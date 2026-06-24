@@ -2,7 +2,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';  
 
 import { RouteError } from '@src/utils/route-errors';
-import { authenticate } from './auth/auth';
+import { authenticate, CustomRequest, generateUserJWT, requireRoles, SignInData } from './auth/authService';
 import HttpStatusCodes from './constants/httpStatusCodes';
 import { Incident } from './types/types';
 import { isValidRut } from './utils/formatUtils';
@@ -12,11 +12,6 @@ const prisma = new PrismaClient();
 /******************************************************************************
                                 Setup
 ******************************************************************************/
-
-type SigninData = {
-  username: string,
-  password: string,
-}
 
 // Datos en memoria (legado Sprint 1 - pendiente consolidar con BD)
 const incidents: Incident[] = [];
@@ -44,17 +39,34 @@ app.use(express.urlencoded({ extended: true }));
 
 /*    AUTH     */
 
-app.post("/auth/signin", (req: Request, res: Response,  next: NextFunction) => {
-  const response: SigninData = req.body as SigninData;
-  
-  const role = authenticate(response.username, response.password);
-  
-  res.send(role ?? "null");
+app.post("/auth/signin",async (req: Request, res: Response,  next: NextFunction) => {
+  const data = req.body as Partial<SignInData>;
+ 
+  if (!data.email || !data.password) {
+    throw new RouteError(
+        HttpStatusCodes.BAD_REQUEST, 
+        "Faltan credenciales: email y password son requeridos."
+    );
+  }
+
+  const loginData: SignInData = {
+    email: data.email,
+    password: data.password,
+  };
+
+  try {
+    const user = await authenticate(loginData.email, loginData.password);
+    const token = generateUserJWT(user.id, user.role.id);
+    const payload = { user, token }
+    res.status(HttpStatusCodes.OK).json(payload);
+  } catch (error) {
+    next(error);
+  }
 })
 
 /*   ESTUDIANTE     */
 
-app.get("/students/search", async (req: Request, res: Response,  next: NextFunction) => {
+app.get("/students/search", requireRoles("Docente", "Inspector"), async (req: CustomRequest, res: Response,  next: NextFunction) => {
   const response = req.query as {q?: string};
 
   if (!response.q) {
@@ -85,7 +97,7 @@ app.get("/students/search", async (req: Request, res: Response,  next: NextFunct
 
 /*    INCIDENTE     */
 
-app.put("/incident", (req: Request, res: Response, next: NextFunction) => {
+app.put("/incident", requireRoles("Docente", "Inspector"), (req: Request, res: Response, next: NextFunction) => {
   const { incidentId, incidentType, severity, actors, date, place, description } = req.body;
 
   // Validar campos obligatorios
@@ -143,7 +155,7 @@ app.post("/incident", (req: Request, res: Response, next: NextFunction) => {
   res.status(HttpStatusCodes.CREATED).json({ incidentId: newIncident.incidentId });
 })
 // Anulacion logica de incidentes (T-12)
-app.delete("/incident/:id", async (req: Request, res: Response, next: NextFunction) => {
+app.delete("/incident/:id", requireRoles("Docente", "Inspector"), async (req: Request, res: Response, next: NextFunction) => {
   // TODO (cuando T-03 esté listo): agregar middleware requireRole(['directivo'])
   const { id } = req.params;
   const { motivo } = req.body;
@@ -194,7 +206,7 @@ app.get("/incident", async (req: Request, res: Response, next: NextFunction) => 
   }
 })
 
-app.get("/incident/:id", async (req: Request, res: Response, next: NextFunction) => {
+app.get("/incident/:id", requireRoles("Docente", "Orientador", "Equipo Directivo"), async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
 
   try {
@@ -224,7 +236,7 @@ app.get("/incident/:id", async (req: Request, res: Response, next: NextFunction)
 
 // Registro de incidentes con persistencia real en BD (T05, T07)
 // Esta ruta crea el incidente y sus participaciones de forma atómica usando Prisma.
-app.post("/incident/register", async (req: Request, res: Response, next: NextFunction) => {
+app.post("/incident/register", requireRoles("Docente", "Inspector"), async (req: Request, res: Response, next: NextFunction) => {
   const { registerer, incidentType, severity, actors, date, place, description } = req.body;
 
   // T05 - Test 2: severity (y los demás campos obligatorios) son requeridos
@@ -385,7 +397,9 @@ app.delete("/admin/user", (req: Request, res: Response, next: NextFunction) => {
 // Add error handler
 app.use((err: Error, _: Request, res: Response, next: NextFunction) => {
   if (err instanceof RouteError) {
+    console.log(`error ${err.status}:`, err.message);
     res.status(err.status).json({ error: err.message });
+    return;
   }
   return next(err);
 });
