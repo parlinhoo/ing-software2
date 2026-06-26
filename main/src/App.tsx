@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import './App.scss'
 import { LoginScreen } from './screens/LoginScreen.tsx'
 import { IncidentListScreen } from './screens/IncidentListScreen.tsx'
@@ -6,6 +6,7 @@ import { IncidentFormScreen } from './screens/IncidentFormScreen.tsx'
 import { IncidentDetailScreen } from './screens/IncidentDetailScreen.tsx'
 import { IncidentEditScreen } from './screens/IncidentEditScreen.tsx'
 import { Toast } from './components/Toast.tsx'
+import { RequirePermission } from './components/RequirePermission.tsx'
 
 type Screen = 'login' | 'list' | 'form' | 'detail' | 'edit'
 
@@ -17,12 +18,12 @@ function App() {
 
   const showToast = (message: string) => setToast({ visible: true, message })
   const hideToast = useCallback(() => setToast(t => ({ ...t, visible: false })), [])
-  
+
   if (screen === 'login') {
     return (
       <div className="main">
         <div className="login-wrapper">
-          <LoginScreen onSuccess={() => setScreen("list")}/>
+          <LoginScreen onSuccess={() => setScreen("list")} />
         </div>
       </div>
     )
@@ -33,10 +34,12 @@ function App() {
       <Toast message={toast.message} visible={toast.visible} onHide={hideToast} />
 
       {screen === 'list' && (
-        <IncidentListScreen
-          onNew={() => setScreen('form')}
-          onDetail={(id) => { setActiveIncidentId(id); setDetailShowSuccess(false); setScreen('detail') }}
-        />
+        <RequirePermission permission="ver_listado_incidentes">
+          <IncidentListScreen
+            onNew={() => setScreen('form')}
+            onDetail={(id) => { setActiveIncidentId(id); setDetailShowSuccess(false); setScreen('detail') }}
+          />
+        </RequirePermission>
       )}
 
       {screen === 'form' && (
