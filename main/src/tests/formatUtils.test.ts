@@ -66,26 +66,26 @@ describe("isValidRut", () => {
 // no es una prueba obligatoria, es solo para probar el regex
 describe("getStudentClassFromString", () => {
     test("devuelve los códigos correctos para cursos explícitos", () => {
-        expect.soft(getStudentClassOptionsRegex("2° Básico B")).toEqual(["2° Básico B"]);
-        expect.soft(getStudentClassOptionsRegex("8vo basico c")).toEqual(["8° Básico C"]);
-        expect.soft(getStudentClassOptionsRegex("5bB")).toEqual(["5° Básico B"]); 
+        expect.soft(getStudentClassOptionsRegex("2° Básico B")).toEqual(["2°B Básico"]);
+        expect.soft(getStudentClassOptionsRegex("8vo basico c")).toEqual(["8°C Básico"]);
+        expect.soft(getStudentClassOptionsRegex("5bB")).toEqual(["5°B Básico"]); 
 
-        expect.soft(getStudentClassOptionsRegex("2° Medio B")).toEqual(["2° Medio B"]);
-        expect.soft(getStudentClassOptionsRegex("4to medio a")).toEqual(["4° Medio A"]);
-        expect.soft(getStudentClassOptionsRegex("1mC")).toEqual(["1° Medio C"]);
+        expect.soft(getStudentClassOptionsRegex("2° Medio B")).toEqual(["2°B Medio"]);
+        expect.soft(getStudentClassOptionsRegex("4to medio a")).toEqual(["4°A Medio"]);
+        expect.soft(getStudentClassOptionsRegex("1mC")).toEqual(["1°C Medio"]);
     });
 
     test("devuelve ambas opciones (Básica y Media) cuando hay ambiguedad en cursos del 1 al 4", () => {
-        expect.soft(getStudentClassOptionsRegex("2°B")).toEqual(["2° Básico B", "2° Medio B"]);
-        expect.soft(getStudentClassOptionsRegex("4 A")).toEqual(["4° Básico A", "4° Medio A"]);
-        expect.soft(getStudentClassOptionsRegex("1-C")).toEqual(["1° Básico C", "1° Medio C"]);
-        expect.soft(getStudentClassOptionsRegex("3ro D")).toEqual(["3° Básico D", "3° Medio D"]);
+        expect.soft(getStudentClassOptionsRegex("2°B")).toEqual(["2°B Básico", "2°B Medio"]);
+        expect.soft(getStudentClassOptionsRegex("4 A")).toEqual(["4°A Básico", "4°A Medio"]);
+        expect.soft(getStudentClassOptionsRegex("1-C")).toEqual(["1°C Básico", "1°C Medio"]);
+        expect.soft(getStudentClassOptionsRegex("3ro D")).toEqual(["3°D Básico", "3°D Medio"]);
     });
 
     test("devuelve solo Básica cuando hay ambigüedad pero el número es de 5 a 8", () => {
-        expect.soft(getStudentClassOptionsRegex("7B")).toEqual(["7° Básico B"]);
-        expect.soft(getStudentClassOptionsRegex("8° A")).toEqual(["8° Básico A"]);
-        expect.soft(getStudentClassOptionsRegex("5 C")).toEqual(["5° Básico C"]);
+        expect.soft(getStudentClassOptionsRegex("7B")).toEqual(["7°B Básico"]);
+        expect.soft(getStudentClassOptionsRegex("8° A")).toEqual(["8°A Básico"]);
+        expect.soft(getStudentClassOptionsRegex("5 C")).toEqual(["5°C Básico"]);
     });
 
     test("devuelve arreglo vacío para entradas inválidas, incompletas o fuera de rango", () => {
@@ -94,4 +94,4 @@ describe("getStudentClassFromString", () => {
         expect.soft(getStudentClassOptionsRegex("Cualquier texto")).toEqual([]);
         expect.soft(getStudentClassOptionsRegex("")).toEqual([]);
     });
-})
+});
