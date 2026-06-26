@@ -2,3 +2,5 @@
 dist/
 tsconfig.tsbuildinfo
 .env
+.env.development
+.env.test
