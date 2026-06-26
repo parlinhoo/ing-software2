@@ -508,9 +508,53 @@ app.delete("/admin/case_state", (req: Request, res: Response, next: NextFunction
   res.send();
 })
 
-app.put("/admin/user", (req: Request, res: Response, next: NextFunction) => {
-  res.send();
+app.put("/admin/user", async (req: Request, res: Response, next: NextFunction) => {
+  const { username, password, role } = req.body;
+
+  // CA1 - validar campos obligatorios
+  if (!username || !password || !role) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
+  }
+
+  // Validar que el rol existe en la BD
+  try {
+    const rol = await prisma.rol.findFirst({
+      where: { nombre: role },
+    });
+    if (!rol) {
+      return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Rol no válido"));
+    }
+
+    // Verificar que el correo no esté duplicado (CA3)
+    const existente = await prisma.usuario.findUnique({
+      where: { correo: username },
+    });
+    if (existente) {
+      return next(new RouteError(HttpStatusCodes.CONFLICT, "El correo ya está registrado"));
+    }
+
+    // Hashear contraseña
+    const { bcryptHash } = await import('@src/crypto/cryptoService');
+    const contrasenaHash = await bcryptHash(password);
+
+    // Guardar en BD
+    const nuevo = await prisma.usuario.create({
+      data: {
+        nombre: username,
+        correo: username,
+        contrasenaHash,
+        rolId: rol.id,
+      },
+    });
+
+    res.status(HttpStatusCodes.OK).json({ id: nuevo.id.toString() });
+
+  } catch (error) {
+    console.error("Error detallado:", error);
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al crear usuario"));
+  }
 })
+
 app.post("/admin/user", (req: Request, res: Response, next: NextFunction) => {
   res.send();
 })

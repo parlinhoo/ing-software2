@@ -9,6 +9,7 @@ import { useIncidentFilters, type IncidentRow } from '../hooks/useIncidentFilter
 import { fetchIncidents, type IncidentAPI } from '../services/incidentService.ts'
 import { useEffect, useState } from 'react'
 import { usePermissions } from '../hooks/usePermissions.ts'
+import { useAuth } from '../context/authContext.tsx'
 
 type Props = {
   onNew: () => void
@@ -51,6 +52,8 @@ const GRAVEDAD_BADGE: Record<string, { src: string; label: string }> = {
 export function IncidentListScreen({ onNew, onDetail }: Props) {
   const { can } = usePermissions()
   const [incidents, setIncidents] = useState<IncidentRow[]>([])  
+  const { user } = useAuth()
+  const puedeCrear = user?.role.name === 'Docente' || user?.role.name === 'Inspector'
 
   useEffect(() => {
     fetchIncidents()
@@ -79,7 +82,7 @@ export function IncidentListScreen({ onNew, onDetail }: Props) {
           <span className="contexto-texto">Pantalla Principal / Listado de Incidentes</span>
           <h1 className="titulo-principal">Panel de Gestión de Incidentes</h1>
         </div>
-        {can('crear_incidente') && (
+        {puedeCrear && (
           <button className="btn-primario" onClick={onNew}>+ Nuevo Registro de Incidente</button>
         )}
       </header>
