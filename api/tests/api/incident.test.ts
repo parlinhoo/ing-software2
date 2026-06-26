@@ -1,5 +1,7 @@
 import request from 'supertest';
 import app from '@src/server';
+import { generateUserJWT } from '@src/auth/authService';
+const tokenInspector = generateUserJWT(7, 3);
 
 describe('POST /incident - validaciones de API', () => {
 
@@ -86,27 +88,28 @@ describe('POST /incident - validaciones de API', () => {
   });
 
   it('el incidente creado aparece en GET /incident', async () => {
-    // Usa el flujo con persistencia en BD (POST /incident/register),
-    // ya que GET /incident ahora lee de la base de datos, no de memoria.
-    const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // Usa el flujo con persistencia en BD (POST /incident/register),
+  // ya que GET /incident ahora lee de la base de datos, no de memoria.
+  const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    const post = await request(app)
-      .post('/incident/register')
-      .send({
-        registerer: '7',
-        incidentType: 'Agresión verbal',
-        severity: 'Leve',
-        date: ayer,
-        place: 'Patio',
-        description: 'Empujones',
-        actors: [],
-      });
-    const id = post.body.incidentId; // string (BigInt serializado)
+  const post = await request(app)
+    .post('/incident/register')
+    .set('Authorization', `Bearer ${tokenInspector}`)
+    .send({
+      registerer: '7',
+      incidentType: 'Agresión verbal',
+      severity: 'Leve',
+      date: ayer,
+      place: 'Patio',
+      description: 'Empujones',
+      actors: [],
+    });
+  const id = post.body.incidentId; // string (BigInt serializado)
 
-    const get = await request(app).get('/incident');
-    const incidents = JSON.parse(get.text);
-    const ids = incidents.map((i: { id: string }) => i.id);
-    expect(ids).toContain(id);
-  });
+  const get = await request(app).get('/incident');
+  const incidents = JSON.parse(get.text);
+  const ids = incidents.map((i: { id: string }) => i.id);
+  expect(ids).toContain(id);
+});
 
 });

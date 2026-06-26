@@ -8,6 +8,7 @@ vi.mock('@src/services/studentService', () => ({
 
 import app from '@src/server';
 import * as studentService from '@src/services/studentService';
+import { generateUserJWT } from '@src/auth/authService';
 
 type StudentData = {
   rut: string;
@@ -19,6 +20,9 @@ const mockedStudentService = studentService as unknown as {
   getStudentByRUN: ReturnType<typeof vi.fn>;
   getStudentsByName: ReturnType<typeof vi.fn>;
 };
+
+// Orientador Andrea: userId 5, roleId 4. Cualquier rol autorizado sirve para /students/search.
+const tokenOrientador = generateUserJWT(5, 4);
 
 describe('API server', () => {
   beforeEach(() => {
@@ -35,7 +39,10 @@ describe('API server', () => {
 
       mockedStudentService.getStudentByRUN.mockResolvedValueOnce(expectedStudent);
 
-      const response = await request(app).get('/students/search').query({ q: '11111111-1' });
+      const response = await request(app)
+        .get('/students/search')
+        .set('Authorization', `Bearer ${tokenOrientador}`)
+        .query({ q: '11111111-1' });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual([expectedStudent]);
@@ -45,7 +52,10 @@ describe('API server', () => {
     it('retorna array vacío cuando el RUT no existe', async () => {
       mockedStudentService.getStudentByRUN.mockResolvedValueOnce(null);
 
-      const response = await request(app).get('/students/search').query({ q: '99999999-9' });
+      const response = await request(app)
+        .get('/students/search')
+        .set('Authorization', `Bearer ${tokenOrientador}`)
+        .query({ q: '99999999-9' });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual([]);
@@ -60,7 +70,10 @@ describe('API server', () => {
 
       mockedStudentService.getStudentsByName.mockResolvedValueOnce(expectedStudents);
 
-      const response = await request(app).get('/students/search').query({ q: 'Juan Pérez' });
+      const response = await request(app)
+        .get('/students/search')
+        .set('Authorization', `Bearer ${tokenOrientador}`)
+        .query({ q: 'Juan Pérez' });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(expectedStudents);
@@ -75,7 +88,10 @@ describe('API server', () => {
 
       mockedStudentService.getStudentsByName.mockResolvedValueOnce(expectedStudents);
 
-      const response = await request(app).get('/students/search').query({ q: 'Juan Pérez' });
+      const response = await request(app)
+        .get('/students/search')
+        .set('Authorization', `Bearer ${tokenOrientador}`)
+        .query({ q: 'Juan Pérez' });
 
       expect(response.status).toBe(200);
       expect(Array.isArray(response.body)).toBe(true);
@@ -86,7 +102,10 @@ describe('API server', () => {
     it('retorna array vacío cuando no hay estudiantes con ese nombre', async () => {
       mockedStudentService.getStudentsByName.mockResolvedValueOnce([]);
 
-      const response = await request(app).get('/students/search').query({ q: 'No Existe' });
+      const response = await request(app)
+        .get('/students/search')
+        .set('Authorization', `Bearer ${tokenOrientador}`)
+        .query({ q: 'No Existe' });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual([]);
@@ -95,7 +114,9 @@ describe('API server', () => {
 
   describe('GET /students/search - sin parámetro', () => {
     it('retorna array vacío cuando no se envía el parámetro q', async () => {
-      const response = await request(app).get('/students/search');
+      const response = await request(app)
+        .get('/students/search')
+        .set('Authorization', `Bearer ${tokenOrientador}`);
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual([]);

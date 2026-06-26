@@ -26,7 +26,6 @@ export type SignInData = {
     password: string,
 }
 
-// en la practica siempre seran number
 export type User = {
     id: number,
     name: string,
@@ -38,28 +37,23 @@ export type User = {
 
 export async function authenticate(email: string, password: string): Promise<User>  {
     const fetchedUser = await prisma.usuario.findUnique({
-        where: {
-            correo: email,
-        },
+        where: { correo: email },
         select: {
             id: true,
             nombre: true,
             contrasenaHash: true,
             rol: {
-                select: {
-                    nombre: true,
-                    id: true,
-                },
+                select: { nombre: true, id: true },
             },
         }
     });
-    
+
     if (!fetchedUser) throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Credenciales Inválidas.");
-    
+
     const success = await bcryptCompare(password, fetchedUser.contrasenaHash);
-    
+
     if (!success) throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Credenciales Inválidas.");
-    
+
     const user: User = {
         id: Number(fetchedUser.id),
         name: fetchedUser.nombre,
@@ -68,15 +62,15 @@ export async function authenticate(email: string, password: string): Promise<Use
             name: fetchedUser.rol.nombre,
         }
     }
-    
+
     return user;
 }
 
 const JWT_SECRET = environment.JWT_SECRET;
 
 export function generateUserJWT(userId: number, roleId: number): string {
-  const payload = { 
-    userId: userId.toString(), 
+  const payload = {
+    userId: userId.toString(),
     roleId: roleId.toString(),
   };
 
@@ -87,49 +81,61 @@ export function generateUserJWT(userId: number, roleId: number): string {
   return token;
 }
 
-// wrapper para que quede mejor y mas limpio
-export function requireRoles(...roles: Roles[]) {
-    async function requireAuth(req: CustomRequest, _: Response, next: NextFunction) {
-        const authHeader = req.headers.authorization;
+// Helper privado: valida el JWT y popula req.user. Throws RouteError si algo falla.
+// Lo usan tanto requireAuth (export directo) como requireRoles (con validación de rol encima).
+function validateTokenAndPopulate(req: CustomRequest): void {
+    const authHeader = req.headers.authorization;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Acceso denegado. Token no proporcionado.");
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Acceso denegado. Token no proporcionado.");
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+        const payloadDecodificado = jwt.verify(token, environment.JWT_SECRET) as JwtPayload;
+        req.user = payloadDecodificado;
+    } catch (error) {
+        if (error instanceof jwt.TokenExpiredError) {
+            throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "La sesión ha expirado. Vuelve a iniciar sesión.");
         }
+        throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Token inválido o corrupto.");
+    }
+}
 
-        const token = authHeader.split(' ')[1];
+// Middleware standalone que solo valida el token (sin chequeo de rol).
+// Sincrono: throws en error, llama next() en éxito.
+// Nota: si se usa directo como middleware Express, envolver en wrapper con try/catch.
+export function requireAuth(req: CustomRequest, _: Response, next: NextFunction): void {
+    validateTokenAndPopulate(req);
+    next();
+}
 
+// Middleware con validacion de roles. Async porque consulta BD.
+// Captura errores y los pasa a next() (compatible con Express).
+export function requireRoles(...roles: Roles[]) {
+    return async function (req: CustomRequest, _: Response, next: NextFunction) {
         try {
-            const payloadDecodificado = jwt.verify(token, environment.JWT_SECRET) as JwtPayload;
-            req.user = payloadDecodificado;
+            validateTokenAndPopulate(req);
 
             const fetchedRole = await prisma.rol.findUnique({
-                where: {
-                    id: Number(req.user.roleId),
-                },
-                select: {
-                    nombre: true,
-                }
+                where: { id: Number(req.user!.roleId) },
+                select: { nombre: true }
             });
-            
+
             if (!fetchedRole) {
                 throw new RouteError(HttpStatusCodes.NOT_FOUND, "El rol especificado no existe en la base de datos.");
             }
 
             console.log("nombre:", fetchedRole.nombre);
-            
+
             if (!roles.includes(fetchedRole.nombre as Roles)) {
                 throw new RouteError(HttpStatusCodes.FORBIDDEN, "Acceso denegado. No tienes los permisos necesarios.");
             }
 
             next();
         } catch (error) {
-            if (error instanceof jwt.TokenExpiredError) {
-                error = new RouteError(HttpStatusCodes.UNAUTHORIZED, "La sesión ha expirado. Vuelve a iniciar sesión.");
-            }
             next(error);
-            return;
         }
-    }
-    
-    return requireAuth;
+    };
 }

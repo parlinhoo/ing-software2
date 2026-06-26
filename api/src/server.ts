@@ -1,6 +1,6 @@
 import express, { NextFunction, Request, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';  
-
+import { isFechaFutura } from './utils/dateValidation';
 import { RouteError } from '@src/utils/route-errors';
 import { authenticate, CustomRequest, generateUserJWT, requireRoles, SignInData } from './auth/authService';
 import HttpStatusCodes from './constants/httpStatusCodes';
@@ -78,7 +78,7 @@ app.post("/auth/signin",async (req: Request, res: Response,  next: NextFunction)
 
 /*   ESTUDIANTE     */
 
-app.get("/students/search", requireRoles("Docente", "Inspector"), async (req: CustomRequest, res: Response,  next: NextFunction) => {
+app.get("/students/search", requireRoles("Docente", "Inspector", "Orientador", "Equipo Directivo"), async (req: CustomRequest, res: Response,  next: NextFunction) => {
   const response = req.query as {q?: string};
 
   if (!response.q) {
@@ -109,7 +109,9 @@ app.get("/students/search", requireRoles("Docente", "Inspector"), async (req: Cu
 
 /*    INCIDENTE     */
 
-app.put("/incident", requireRoles("Docente", "Inspector"), (req: Request, res: Response, next: NextFunction) => {
+// DEPRECATED — operación contra el array en memoria.
+// Pendiente: migrar a UPDATE en Prisma y proteger con requireRoles segUN US-07.
+app.put("/incident", requireRoles("Docente", "Inspector"), (req, res, next) => {
   const { incidentId, incidentType, severity, actors, date, place, description } = req.body;
 
   // Validar campos obligatorios
@@ -136,6 +138,8 @@ app.put("/incident", requireRoles("Docente", "Inspector"), (req: Request, res: R
   res.status(HttpStatusCodes.OK).json({ incidentId });
 })
 
+// DEPRECATED — usa POST /incident/register (persistencia en BD).
+// Esta ruta solo guarda en el array en memoria; lo que cree no aparecerá en GET /incident.
 app.post("/incident", (req: Request, res: Response, next: NextFunction) => {
   const { incidentType, severity, actors, date, place, description } = req.body;
 
@@ -145,12 +149,10 @@ app.post("/incident", (req: Request, res: Response, next: NextFunction) => {
   }
 
   // Validar que la fecha no sea futura
-  const incidentDate = new Date(date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (incidentDate > today) {
-    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
+  if (isFechaFutura(date)) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura")); 
   }
+  const incidentDate = new Date(date);   // queda para uso más abajo en /incident/register
 
   // Crear y guardar el incidente
   const newIncident: Incident = {
@@ -166,9 +168,8 @@ app.post("/incident", (req: Request, res: Response, next: NextFunction) => {
 
   res.status(HttpStatusCodes.CREATED).json({ incidentId: newIncident.incidentId });
 })
-// Anulacion logica de incidentes (T-12)
-app.delete("/incident/:id", requireRoles("Docente", "Inspector"), async (req: Request, res: Response, next: NextFunction) => {
-  // TODO (cuando T-03 esté listo): agregar middleware requireRole(['directivo'])
+// Anulacion logica de incidentes (T-12). Solo Equipo Directivo según US-10.
+app.delete("/incident/:id", requireRoles("Equipo Directivo"), async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
   const { motivo } = req.body;
 
@@ -202,18 +203,53 @@ app.get("/incident", async (req: Request, res: Response, next: NextFunction) => 
   try {
     const incidentes = await prisma.incidente.findMany({
       where: { anulado: false },
+      include: {
+        gravedad: true,
+        tipoIncidente: true,
+        estadoCaso: true,
+        participaciones: {
+          include: {
+            estudiante: true,
+            rolEnConflicto: true,
+          },
+        },
+      },
     });
-    // Serializar BigInt a string para el JSON
+
+    // Mapas BD → frontend (códigos cortos)
+    const SEVERITY_CODES: Record<string, string> = {
+      'Leve': 'mild', 'Grave': 'severe', 'Muy grave': 'verysevere',
+    };
+    const TYPE_CODES: Record<string, string> = {
+      'Agresión verbal': 'verbal',
+      'Agresión física': 'physical',
+      'Acoso escolar': 'harassment',
+      'Discriminación': 'discrimination',
+      'Otro': 'other',
+    };
+    const ROLE_CODES: Record<string, string> = {
+      'Agresor': 'aggressor', 'Víctima': 'victim', 'Testigo': 'witness',
+    };
+
+    // Reformatear al shape que espera el frontend (IncidentAPI)
     const result = incidentes.map(i => ({
-      ...i,
+      // mantengo `id` para compatibilidad con tests existentes
       id: i.id.toString(),
-      gravedadId: i.gravedadId.toString(),
-      tipoIncidenteId: i.tipoIncidenteId.toString(),
-      estadoCasoId: i.estadoCasoId.toString(),
-      registradoPorId: i.registradoPorId.toString(),
+      incidentId: Number(i.id),
+      incidentType: TYPE_CODES[i.tipoIncidente.nombre] ?? i.tipoIncidente.nombre,
+      severity: SEVERITY_CODES[i.gravedad.nombre] ?? i.gravedad.nombre,
+      date: i.fecha.toISOString(),
+      place: i.lugar,
+      description: i.descripcion,
+      actors: i.participaciones.map(p => ({
+        name: p.estudiante.nombre,
+        role: ROLE_CODES[p.rolEnConflicto.nombre] ?? p.rolEnConflicto.nombre,
+      })),
     }));
+
     res.status(HttpStatusCodes.OK).json(result);
   } catch (error) {
+    console.error('Error en GET /incident:', error);
     return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al consultar incidentes"));
   }
 })
@@ -246,36 +282,49 @@ app.get("/incident/:id", requireRoles("Docente", "Orientador", "Equipo Directivo
   }
 })
 
-// Registro de incidentes con persistencia real en BD (T05, T07)
 // Esta ruta crea el incidente y sus participaciones de forma atómica usando Prisma.
-app.post("/incident/register", requireRoles("Docente", "Inspector"), async (req: Request, res: Response, next: NextFunction) => {
-  const { registerer, incidentType, severity, actors, date, place, description } = req.body;
+app.post("/incident/register", requireRoles("Docente", "Inspector"), async (req: CustomRequest, res: Response, next: NextFunction) => {
+  const { incidentType, severity, actors, date, place, description } = req.body;
 
-  // T05 - Test 2: severity (y los demás campos obligatorios) son requeridos
-  if (!registerer || !incidentType || !severity || !date || !place || !description) {
+  // El registrador se toma del JWT, no del body
+  const registererId = req.user?.userId;
+  if (!registererId) {
+    return next(new RouteError(HttpStatusCodes.UNAUTHORIZED, "Usuario no identificado en el token"));
+  }
+
+  if (!incidentType || !severity || !date || !place || !description) {
     return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
   }
 
-  const incidentDate = new Date(date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (incidentDate > today) {
+  if (isFechaFutura(date)) {
     return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
   }
+  const incidentDate = new Date(date);
+
+  // Mapas frontend → BD (códigos cortos a nombres reales)
+  const SEVERITY_NAMES: Record<string, string> = {
+    mild: 'Leve', severe: 'Grave', verysevere: 'Muy grave',
+  };
+  const TYPE_NAMES: Record<string, string> = {
+    verbal: 'Agresión verbal',
+    physical: 'Agresión física',
+    harassment: 'Acoso escolar',
+    discrimination: 'Discriminación',
+    other: 'Otro',
+  };
+  const ROLE_NAMES: Record<string, string> = {
+    aggressor: 'Agresor', victim: 'Víctima', witness: 'Testigo',
+  };
+
+  // Acepta tanto el código corto como el nombre completo (compatibilidad con tests)
+  const severityName = SEVERITY_NAMES[severity] ?? severity;
+  const typeName = TYPE_NAMES[incidentType] ?? incidentType;
 
   try {
-    // Buscar gravedadId por nombre ("Leve", "Grave", "Muy grave")
-    const gravedad = await prisma.gravedad.findFirstOrThrow({
-      where: { nombre: severity },
-    });
-    const tipoIncidente = await prisma.tipoIncidente.findFirstOrThrow({
-      where: { nombre: incidentType },
-    });
-    const estadoCaso = await prisma.estadoCaso.findFirstOrThrow({
-      where: { nombre: 'Abierto' },
-    });
+    const gravedad = await prisma.gravedad.findFirstOrThrow({ where: { nombre: severityName } });
+    const tipoIncidente = await prisma.tipoIncidente.findFirstOrThrow({ where: { nombre: typeName } });
+    const estadoCaso = await prisma.estadoCaso.findFirstOrThrow({ where: { nombre: 'Abierto' } });
 
-    // T07 - transacción atómica: incidente + participaciones
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const incidente = await tx.incidente.create({
         data: {
@@ -285,19 +334,30 @@ app.post("/incident/register", requireRoles("Docente", "Inspector"), async (req:
           gravedadId: gravedad.id,
           tipoIncidenteId: tipoIncidente.id,
           estadoCasoId: estadoCaso.id,
-          registradoPorId: BigInt(registerer),
+          registradoPorId: BigInt(registererId),
         },
       });
 
       if (actors && actors.length > 0) {
         for (const actor of actors) {
-          const rol = await tx.rolEnConflicto.findFirstOrThrow({
-            where: { nombre: actor.role },
-          });
+          // Acepta rut (del frontend) o estudianteId directo (de los tests)
+          let estudianteId: bigint;
+          if (actor.rut) {
+            const est = await tx.estudiante.findUnique({ where: { run: actor.rut } });
+            if (!est) throw new RouteError(HttpStatusCodes.BAD_REQUEST, `Estudiante con RUT ${actor.rut} no existe`);
+            estudianteId = est.id;
+          } else if (actor.estudianteId) {
+            estudianteId = BigInt(actor.estudianteId);
+          } else {
+            throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Cada actor debe tener rut o estudianteId");
+          }
+
+          const roleName = ROLE_NAMES[actor.role] ?? actor.role;
+          const rol = await tx.rolEnConflicto.findFirstOrThrow({ where: { nombre: roleName } });
           await tx.participacionEnIncidente.create({
             data: {
               incidenteId: incidente.id,
-              estudianteId: BigInt(actor.estudianteId),
+              estudianteId,
               rolEnConflictoId: rol.id,
             },
           });
@@ -308,9 +368,9 @@ app.post("/incident/register", requireRoles("Docente", "Inspector"), async (req:
     });
 
     res.status(HttpStatusCodes.CREATED).json({ incidentId: result.id.toString() });
-
   } catch (error) {
-    // T07 - Test 2: si falla algo dentro de $transaction, Prisma hace rollback automático
+    if (error instanceof RouteError) return next(error);
+    console.error('Error creando incidente:', error);
     return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al crear el incidente"));
   }
 });
@@ -318,6 +378,8 @@ app.post("/incident/register", requireRoles("Docente", "Inspector"), async (req:
 
 /*         INTERVENCIONES         */ 
 
+// DEPRECATED — usa POST /intervention (persistencia en BD, valida rol).
+// Esta ruta opera sobre el array en memoria de intervenciones.
 app.put("/intervention", async (req: Request, res: Response, next: NextFunction) => {
   const { registerer, incidentId, date, interventionType, description } = req.body;
 
@@ -354,35 +416,51 @@ app.put("/intervention", async (req: Request, res: Response, next: NextFunction)
   res.status(HttpStatusCodes.CREATED).json({ id: newIntervention.id });
 })
 
-app.post("/intervention", async (req: Request, res: Response, next: NextFunction) => {
-  const { incidentId, interventionId, date, interventionType, description } = req.body;
+// Volver a agregar la Task 15, que se perdio con el merge
 
-  if (!incidentId || !interventionId) {
+app.post("/intervention", requireRoles("Orientador"), async (req: CustomRequest, res: Response, next: NextFunction) => {
+  const { incidenteId, tipo, fecha, descripcion } = req.body;
+
+  // El orientador se obtiene del JWT, ya no del body (T-03 disponible)
+  const realizadaPor = req.user?.userId;
+
+  // Validación de campos obligatorios (CA1)
+  if (!incidenteId || !tipo || !fecha || !descripcion) {
     return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
   }
 
-  const intervention = interventions.find(
-    i => i.id === Number(interventionId) && i.incidentId === Number(incidentId)
-  );
-  if (!intervention) {
-    return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Intervención no encontrada"));
+  const interventionDate = new Date(fecha);
+  if (isNaN(interventionDate.getTime())) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Fecha inválida"));
   }
 
-  if (date) {
-    const interventionDate = new Date(date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (interventionDate > today) {
-      return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
+  try {
+    const incidente = await prisma.incidente.findUnique({
+      where: { id: BigInt(incidenteId) },
+    });
+    if (!incidente) {
+      return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
     }
-    intervention.date = date;
+
+    const intervencion = await prisma.intervencion.create({
+      data: {
+        incidenteId: BigInt(incidenteId),
+        realizadaPorId: BigInt(realizadaPor as string),
+        fecha: interventionDate,
+        tipo,
+        descripcion,
+      },
+    });
+
+    res.status(HttpStatusCodes.CREATED).json({ interventionId: intervencion.id.toString() });
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al crear la intervención"));
   }
-  if (interventionType) intervention.interventionType = interventionType;
-  if (description) intervention.description = description;
+});
 
-  res.status(HttpStatusCodes.OK).json({ id: intervention.id });
-})
 
+// DEPRECATED — debería leer de Prisma (tabla `intervencion`).
+// El listado real para el detalle del incidente debe consultar BD.
 app.get("/intervention", (req: Request, res: Response, next: NextFunction) => {
   const { incidentId } = req.query;
 

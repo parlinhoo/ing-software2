@@ -19,6 +19,7 @@
     "require": ["tsconfig-paths/register", "dotenv/config"],
   },
   "include": [
+    "src/**/*", "prisma/**/*",
     "src/**/*.ts",
     "tests/**/*.ts",
     "scripts",

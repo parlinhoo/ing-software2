@@ -1,9 +1,14 @@
 import request from 'supertest';
 import { prisma } from '../support/agent';
 import app from '@src/server';
+import { generateUserJWT } from '@src/auth/authService';
 
+// Usar 'ayer' evita el rechazo por fecha futura (diferencia de zona horaria).
+const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-const today = new Date().toISOString().split('T')[0];
+// Inspector Juan: userId 7, roleId 3. Autorizado para registrar incidentes.
+const tokenInspector = generateUserJWT(7, 3);
+
 // ─── T05 ────────────────────────────────────────────────────────────────────
 
 describe('T05 - Selector de gravedad', () => {
@@ -11,11 +16,12 @@ describe('T05 - Selector de gravedad', () => {
   it('Test 1: la BD refleja la gravedad correcta vinculada al ID del incidente', async () => {
     const res = await request(app)
       .post('/incident/register')
+      .set('Authorization', `Bearer ${tokenInspector}`)
       .send({
         registerer: '7',
         incidentType: 'Agresión verbal',
         severity: 'Leve',
-        date: today,
+        date: ayer,
         place: 'Sala 1A',
         description: 'Insultos',
         actors: [],
@@ -39,11 +45,12 @@ describe('T05 - Selector de gravedad', () => {
   it('Test 2: rechaza el envío si falta el campo severity', async () => {
     const res = await request(app)
       .post('/incident/register')
+      .set('Authorization', `Bearer ${tokenInspector}`)
       .send({
         registerer: '7',
         incidentType: 'Agresión verbal',
         // severity omitido intencionalmente
-        date: today,
+        date: ayer,
         place: 'Sala 1A',
         description: 'Insultos',
         actors: [],
@@ -62,11 +69,12 @@ describe('T07 - Involucrados y roles en tabla relacional', () => {
   it('Test 1: guardado atómico - 1 incidente y 2 participaciones con el mismo ID', async () => {
     const res = await request(app)
       .post('/incident/register')
+      .set('Authorization', `Bearer ${tokenInspector}`)
       .send({
         registerer: '7',
         incidentType: 'Agresión física',
         severity: 'Grave',
-        date: today,
+        date: ayer,
         place: 'Patio',
         description: 'Empujones',
         actors: [
@@ -94,11 +102,12 @@ describe('T07 - Involucrados y roles en tabla relacional', () => {
   it('Test 2: rollback completo si estudianteId no existe - no queda nada en BD', async () => {
     const res = await request(app)
       .post('/incident/register')
+      .set('Authorization', `Bearer ${tokenInspector}`)
       .send({
         registerer: '7',
         incidentType: 'Agresión física',
         severity: 'Grave',
-        date: today,
+        date: ayer,
         place: 'Patio rollback',
         description: 'Test rollback',
         actors: [
