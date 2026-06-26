@@ -7,20 +7,35 @@ import HttpStatusCodes from './constants/httpStatusCodes';
 import { Incident } from './types/types';
 import { isValidRut } from './utils/formatUtils';
 import { getStudentByRUN, getStudentsByName, StudentData } from './services/studentService';
-
-type Intervention = {
-  id: number,
-  incidentId: number,
-  registerer: string,
-  date: string,
-  interventionType: string,
-  description: string,
-}
-
-const interventions: Intervention[] = [];
-let nextInterventionId = 1;
+import jwt from 'jsonwebtoken';
+import environment from './constants/environment';
 
 const prisma = new PrismaClient();
+
+// Extrae el userId del JWT (si viene); fallback al primer usuario para la demo.
+async function getUserIdFromRequest(req: Request): Promise<bigint> {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.split(' ')[1];
+      const payload = jwt.verify(token, environment.JWT_SECRET) as { userId: string };
+      if (payload?.userId) return BigInt(payload.userId);
+    } catch { /* token inválido: cae al fallback */ }
+  }
+  const anyUser = await prisma.usuario.findFirstOrThrow({ select: { id: true } });
+  return anyUser.id;
+}
+
+// Serializa una intervención de Prisma al formato que espera el frontend
+function serializeIntervention(i: { id: bigint; incidenteId: bigint; tipo: string; descripcion: string; fecha: Date }) {
+  return {
+    id: i.id.toString(),
+    incidenteId: Number(i.incidenteId),
+    tipo: i.tipo,
+    descripcion: i.descripcion,
+    fecha: i.fecha.toISOString().split('T')[0],
+  };
+}
 /******************************************************************************
                                 Setup
 ******************************************************************************/
@@ -316,85 +331,150 @@ app.post("/incident/register", requireRoles("Docente", "Inspector"), async (req:
 });
 
 
-/*         INTERVENCIONES         */ 
+/*         INTERVENCIONES (persistencia en BD vía Prisma)        */
 
-app.put("/intervention", async (req: Request, res: Response, next: NextFunction) => {
-  const { registerer, incidentId, date, interventionType, description } = req.body;
-
-  // Validar campos obligatorios
-  if (!registerer || !incidentId || !date || !interventionType || !description) {
-    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
-  }
-
-  // Validar que la fecha no sea futura
-  const interventionDate = new Date(date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (interventionDate > today) {
-    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
-  }
-
-  // Buscar el incidente
-  const incident = incidents.find(i => i.incidentId === Number(incidentId));
-  if (!incident) {
-    return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
-  }
-
-  // Crear intervención
-  const newIntervention: Intervention = {
-    id: nextInterventionId++,
-    incidentId: Number(incidentId),
-    registerer,
-    date,
-    interventionType,
-    description,
-  };
-  interventions.push(newIntervention);
-
-  res.status(HttpStatusCodes.CREATED).json({ id: newIntervention.id });
-})
-
-app.post("/intervention", async (req: Request, res: Response, next: NextFunction) => {
-  const { incidentId, interventionId, date, interventionType, description } = req.body;
-
-  if (!incidentId || !interventionId) {
-    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
-  }
-
-  const intervention = interventions.find(
-    i => i.id === Number(interventionId) && i.incidentId === Number(incidentId)
-  );
-  if (!intervention) {
-    return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Intervención no encontrada"));
-  }
-
-  if (date) {
-    const interventionDate = new Date(date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (interventionDate > today) {
-      return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
-    }
-    intervention.date = date;
-  }
-  if (interventionType) intervention.interventionType = interventionType;
-  if (description) intervention.description = description;
-
-  res.status(HttpStatusCodes.OK).json({ id: intervention.id });
-})
-
-app.get("/intervention", (req: Request, res: Response, next: NextFunction) => {
+// Listar intervenciones de un incidente (orden cronológico inverso)
+app.get("/intervention", async (req: Request, res: Response, next: NextFunction) => {
   const { incidentId } = req.query;
-
   if (!incidentId) {
     return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Falta incidentId"));
   }
+  try {
+    const result = await prisma.intervencion.findMany({
+      where: { incidenteId: BigInt(incidentId as string), eliminadoEn: null },
+      orderBy: { fecha: 'desc' },
+    });
+    res.json(result.map(serializeIntervention));
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al consultar intervenciones"));
+  }
+})
 
-  const result = interventions
-    .filter(i => i.incidentId === Number(incidentId))
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+// Crear intervención
+app.post("/intervention", async (req: Request, res: Response, next: NextFunction) => {
+  const { incidenteId, tipo, descripcion, fecha } = req.body;
 
-  res.json(result);
+  if (!incidenteId || !tipo || !descripcion || !fecha) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
+  }
+
+  const fechaIngresada = new Date(fecha);
+  const hoy = new Date();
+  hoy.setHours(23, 59, 59, 999);
+  if (fechaIngresada > hoy) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
+  }
+
+  try {
+    const realizadaPorId = await getUserIdFromRequest(req);
+    const creada = await prisma.intervencion.create({
+      data: {
+        incidenteId: BigInt(incidenteId),
+        realizadaPorId,
+        tipo,
+        descripcion,
+        fecha: fechaIngresada,
+      },
+    });
+    res.status(HttpStatusCodes.CREATED).json(serializeIntervention(creada));
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al crear la intervención"));
+  }
+})
+
+// Editar intervención
+app.put("/intervention", async (req: Request, res: Response, next: NextFunction) => {
+  const { id, tipo, descripcion, fecha } = req.body;
+  if (!id) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "ID de la intervención requerido"));
+  }
+
+  if (fecha) {
+    const fechaIngresada = new Date(fecha);
+    const hoy = new Date();
+    hoy.setHours(23, 59, 59, 999);
+    if (fechaIngresada > hoy) {
+      return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
+    }
+  }
+
+  try {
+    const actualizada = await prisma.intervencion.update({
+      where: { id: BigInt(id) },
+      data: {
+        ...(tipo ? { tipo } : {}),
+        ...(descripcion ? { descripcion } : {}),
+        ...(fecha ? { fecha: new Date(fecha) } : {}),
+      },
+    });
+    res.status(HttpStatusCodes.OK).json(serializeIntervention(actualizada));
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Intervención no encontrada"));
+  }
+})
+
+// Eliminar intervención (soft delete)
+app.delete("/intervention", async (req: Request, res: Response, next: NextFunction) => {
+  const { id } = req.query;
+  if (!id) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "ID de la intervención requerido"));
+  }
+  try {
+    await prisma.intervencion.update({
+      where: { id: BigInt(id as string) },
+      data: { eliminadoEn: new Date() },
+    });
+    res.status(HttpStatusCodes.OK).json({ message: "Intervención eliminada" });
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Intervención no encontrada"));
+  }
+})
+
+// Cambiar estado del incidente (T-18): Abierto -> En seguimiento -> Cerrado, con reapertura
+app.put("/incident/:id/estado", async (req: Request, res: Response, next: NextFunction) => {
+  const { id } = req.params;
+  const { nuevoEstado } = req.body;
+
+  const NOMBRE_ESTADO: Record<string, string> = {
+    abierto: 'Abierto',
+    en_seguimiento: 'En seguimiento',
+    cerrado: 'Cerrado',
+  };
+  const nombre = NOMBRE_ESTADO[nuevoEstado];
+  if (!nombre) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Estado no válido"));
+  }
+
+  try {
+    const incidenteId = BigInt(id as string);
+
+    // No cerrar sin al menos una intervención registrada
+    if (nuevoEstado === 'cerrado') {
+      const count = await prisma.intervencion.count({ where: { incidenteId, eliminadoEn: null } });
+      if (count === 0) {
+        return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "No se puede cerrar sin intervenciones registradas"));
+      }
+    }
+
+    const estadoCaso = await prisma.estadoCaso.findFirstOrThrow({ where: { nombre } });
+    await prisma.incidente.update({
+      where: { id: incidenteId },
+      data: { estadoCasoId: estadoCaso.id },
+    });
+    res.status(HttpStatusCodes.OK).json({ estado: nuevoEstado });
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al cambiar el estado"));
+  }
+})
+
+// Roles del sistema (para el formulario de creación de usuario)
+app.get("/roles", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const roles = await prisma.rol.findMany({ select: { nombre: true } });
+    res.json(roles.map(r => r.nombre));
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al consultar roles"));
+  }
 })
 /*        ANOTACIONES POSITIVAS      */
 

@@ -26,9 +26,56 @@ export type IncidentAPI = {
   estado?: IncidentState
 }
 
+// ── Adaptador formato BD (backend main) → formato frontend ──────────────
+// El backend devuelve el modelo crudo de Prisma (IDs de catálogo en español).
+// Estos mapas traducen los IDs del seed a las claves que usa el frontend.
+const GRAVEDAD_ID_TO_SEVERITY: Record<string, string> = {
+  '1': 'mild',         // Leve
+  '2': 'severe',       // Grave
+  '3': 'very_severe',  // Muy grave
+}
+const TIPO_ID_TO_TYPE: Record<string, string> = {
+  '1': 'verbal',          // Agresión verbal
+  '2': 'physical',        // Agresión física
+  '3': 'harassment',      // Acoso escolar
+  '4': 'discrimination',  // Discriminación
+  '5': 'other',           // Daño a la propiedad
+  '6': 'other',           // Otro
+}
+const ESTADO_ID_TO_STATE: Record<string, IncidentState> = {
+  '1': 'abierto',
+  '2': 'en_seguimiento',
+  '3': 'cerrado',
+}
+
+type IncidentRaw = {
+  id: string | number
+  fecha: string
+  lugar: string
+  descripcion: string
+  gravedadId: string | number
+  tipoIncidenteId: string | number
+  estadoCasoId: string | number
+  actores?: Array<{ name: string; role: string }>
+  actors?: Array<{ name: string; role: string }>
+}
+
+function adaptIncident(raw: IncidentRaw): IncidentAPI {
+  return {
+    incidentId: Number(raw.id),
+    incidentType: TIPO_ID_TO_TYPE[String(raw.tipoIncidenteId)] ?? 'other',
+    severity: GRAVEDAD_ID_TO_SEVERITY[String(raw.gravedadId)] ?? 'mild',
+    actors: raw.actors ?? raw.actores ?? [],
+    date: raw.fecha,
+    place: raw.lugar,
+    description: raw.descripcion,
+    estado: ESTADO_ID_TO_STATE[String(raw.estadoCasoId)] ?? 'abierto',
+  }
+}
+
 export async function fetchIncidents(): Promise<IncidentAPI[]> {
-  const response = await axiosInstance.get<IncidentAPI[]>(Paths.INCIDENT)
-  return response.data
+  const response = await axiosInstance.get<IncidentRaw[]>(Paths.INCIDENT)
+  return response.data.map(adaptIncident)
 }
 
 export type IncidentDetail = {
@@ -60,9 +107,9 @@ export async function searchStudents(query: string): Promise<StudentData[]> {
 
 export async function getIncidentDetail(incidentId: string): Promise<IncidentAPI> {
     print(`Petición de detalle de incidente ${incidentId} enviada...`);
-    const response = await axiosInstance.get<IncidentAPI>(`incident/${incidentId}`);
+    const response = await axiosInstance.get<IncidentRaw>(`incident/${incidentId}`);
     print(`Detalle de incidente ${incidentId} obtenido con éxito.`);
-    return response.data;
+    return adaptIncident(response.data);
 }
 
 export async function registerIncident(
