@@ -2,23 +2,30 @@ import express, { NextFunction, Request, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';  
 
 import { RouteError } from '@src/utils/route-errors';
-import { authenticate, authenticateFromDB } from './auth/auth';
+import { authenticate, CustomRequest, generateUserJWT, requireRoles, SignInData } from './auth/authService';
 import HttpStatusCodes from './constants/httpStatusCodes';
 import { Incident } from './types/types';
 import { isValidRut } from './utils/formatUtils';
 import { getStudentByRUN, getStudentsByName, StudentData } from './services/studentService';
+
+type Intervention = {
+  id: number,
+  incidentId: number,
+  registerer: string,
+  date: string,
+  interventionType: string,
+  description: string,
+}
+
+const interventions: Intervention[] = [];
+let nextInterventionId = 1;
 
 const prisma = new PrismaClient();
 /******************************************************************************
                                 Setup
 ******************************************************************************/
 
-type SigninData = {
-  username: string,
-  password: string,
-}
-
-// Datos en memoria
+// Datos en memoria (legado Sprint 1 - pendiente consolidar con BD)
 const incidents: Incident[] = [];
 let nextId = 4;
 
@@ -44,23 +51,34 @@ app.use(express.urlencoded({ extended: true }));
 
 /*    AUTH     */
 
-app.post("/auth/signin", async (req: Request, res: Response, next: NextFunction) => {
-  const response: SigninData = req.body as SigninData;
-
-  // Primero intenta con usuarios hardcodeados
-  const role = authenticate(response.username, response.password);
-  if (role) {
-    return res.send(role);
+app.post("/auth/signin",async (req: Request, res: Response,  next: NextFunction) => {
+  const data = req.body as Partial<SignInData>;
+ 
+  if (!data.email || !data.password) {
+    throw new RouteError(
+        HttpStatusCodes.BAD_REQUEST, 
+        "Faltan credenciales: email y password son requeridos."
+    );
   }
 
-  // Si no, busca en la BD
-  const roleFromDB = await authenticateFromDB(response.username, response.password);
-  res.send(roleFromDB ?? "null");
+  const loginData: SignInData = {
+    email: data.email,
+    password: data.password,
+  };
+
+  try {
+    const user = await authenticate(loginData.email, loginData.password);
+    const token = generateUserJWT(user.id, user.role.id);
+    const payload = { user, token }
+    res.status(HttpStatusCodes.OK).json(payload);
+  } catch (error) {
+    next(error);
+  }
 })
 
 /*   ESTUDIANTE     */
 
-app.get("/students/search", async (req: Request, res: Response,  next: NextFunction) => {
+app.get("/students/search", requireRoles("Docente", "Inspector"), async (req: CustomRequest, res: Response,  next: NextFunction) => {
   const response = req.query as {q?: string};
 
   if (!response.q) {
@@ -91,7 +109,7 @@ app.get("/students/search", async (req: Request, res: Response,  next: NextFunct
 
 /*    INCIDENTE     */
 
-app.put("/incident", (req: Request, res: Response, next: NextFunction) => {
+app.put("/incident", requireRoles("Docente", "Inspector"), (req: Request, res: Response, next: NextFunction) => {
   const { incidentId, incidentType, severity, actors, date, place, description } = req.body;
 
   // Validar campos obligatorios
@@ -148,31 +166,89 @@ app.post("/incident", (req: Request, res: Response, next: NextFunction) => {
 
   res.status(HttpStatusCodes.CREATED).json({ incidentId: newIncident.incidentId });
 })
-
-app.delete("/incident", (req: Request, res: Response, next: NextFunction) => {
-  res.send();
-})
-
-app.get("/incident", (req: Request, res: Response, next: NextFunction) => {
-  res.send(JSON.stringify(incidents));
-})
-
-app.get("/incident/:id", (req: Request, res: Response, next: NextFunction) => {
+// Anulacion logica de incidentes (T-12)
+app.delete("/incident/:id", requireRoles("Docente", "Inspector"), async (req: Request, res: Response, next: NextFunction) => {
+  // TODO (cuando T-03 esté listo): agregar middleware requireRole(['directivo'])
   const { id } = req.params;
-  const incidentId = parseInt(id as string);
+  const { motivo } = req.body;
 
-  const incident = incidents.find(i => i.incidentId === incidentId);
-  if (!incident) {
-    return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
+  if (!motivo || typeof motivo !== 'string' || motivo.trim() === '') {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "El motivo de anulación es obligatorio"));
   }
 
-  res.status(HttpStatusCodes.OK).json(incident);
+  try {
+    const incidente = await prisma.incidente.findUnique({
+      where: { id: BigInt(id as string) },
+    });
+    if (!incidente) {
+      return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
+    }
+
+    await prisma.incidente.update({
+      where: { id: BigInt(id as string) },
+      data: {
+        anulado: true,
+        motivoAnulacion: motivo,
+      },
+    });
+
+    res.status(HttpStatusCodes.OK).json({ message: "Incidente anulado correctamente" });
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al anular el incidente"));
+  }
 })
 
+app.get("/incident", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const incidentes = await prisma.incidente.findMany({
+      where: { anulado: false },
+    });
+    // Serializar BigInt a string para el JSON
+    const result = incidentes.map(i => ({
+      ...i,
+      id: i.id.toString(),
+      gravedadId: i.gravedadId.toString(),
+      tipoIncidenteId: i.tipoIncidenteId.toString(),
+      estadoCasoId: i.estadoCasoId.toString(),
+      registradoPorId: i.registradoPorId.toString(),
+    }));
+    res.status(HttpStatusCodes.OK).json(result);
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al consultar incidentes"));
+  }
+})
+
+app.get("/incident/:id", requireRoles("Docente", "Orientador", "Equipo Directivo"), async (req: Request, res: Response, next: NextFunction) => {
+  const { id } = req.params;
+
+  try {
+    const incidente = await prisma.incidente.findUnique({
+      where: { id: BigInt(id as string) },
+    });
+
+    if (!incidente || incidente.anulado) {
+      return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
+    }
+
+    // Serializar BigInt a string para el JSON
+    const result = {
+      ...incidente,
+      id: incidente.id.toString(),
+      gravedadId: incidente.gravedadId.toString(),
+      tipoIncidenteId: incidente.tipoIncidenteId.toString(),
+      estadoCasoId: incidente.estadoCasoId.toString(),
+      registradoPorId: incidente.registradoPorId.toString(),
+    };
+
+    res.status(HttpStatusCodes.OK).json(result);
+  } catch (error) {
+    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al consultar el incidente"));
+  }
+})
 
 // Registro de incidentes con persistencia real en BD (T05, T07)
 // Esta ruta crea el incidente y sus participaciones de forma atómica usando Prisma.
-app.post("/incident/register", async (req: Request, res: Response, next: NextFunction) => {
+app.post("/incident/register", requireRoles("Docente", "Inspector"), async (req: Request, res: Response, next: NextFunction) => {
   const { registerer, incidentType, severity, actors, date, place, description } = req.body;
 
   // T05 - Test 2: severity (y los demás campos obligatorios) son requeridos
@@ -242,50 +318,84 @@ app.post("/incident/register", async (req: Request, res: Response, next: NextFun
 
 /*         INTERVENCIONES         */ 
 
-app.put("/intervention", (req: Request, res: Response, next: NextFunction) => {
-  res.send();
-})
+app.put("/intervention", async (req: Request, res: Response, next: NextFunction) => {
+  const { registerer, incidentId, date, interventionType, description } = req.body;
 
-//####################NUEVO T-15######################################
-app.post("/intervention", async (req: Request, res: Response, next: NextFunction) => {
-  // TODO (cuando T-03 esté listo): sacar realizadaPor de req.user.userId
-  //                                 y agregar middleware requireRole(['orientador'])
-  const { incidenteId, realizadaPor, tipo, fecha, descripcion } = req.body;
-
-  // Validación de campos obligatorios (CA1)
-  if (!incidenteId || !realizadaPor || !tipo || !fecha || !descripcion) {
+  // Validar campos obligatorios
+  if (!registerer || !incidentId || !date || !interventionType || !description) {
     return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
   }
 
-  const interventionDate = new Date(fecha);
-  if (isNaN(interventionDate.getTime())) {
-    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Fecha inválida"));
+  // Validar que la fecha no sea futura
+  const interventionDate = new Date(date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (interventionDate > today) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
   }
 
-  try {
-    const incidente = await prisma.incidente.findUnique({
-      where: { id: BigInt(incidenteId) },
-    });
-    if (!incidente) {
-      return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
+  // Buscar el incidente
+  const incident = incidents.find(i => i.incidentId === Number(incidentId));
+  if (!incident) {
+    return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Incidente no encontrado"));
+  }
+
+  // Crear intervención
+  const newIntervention: Intervention = {
+    id: nextInterventionId++,
+    incidentId: Number(incidentId),
+    registerer,
+    date,
+    interventionType,
+    description,
+  };
+  interventions.push(newIntervention);
+
+  res.status(HttpStatusCodes.CREATED).json({ id: newIntervention.id });
+})
+
+app.post("/intervention", async (req: Request, res: Response, next: NextFunction) => {
+  const { incidentId, interventionId, date, interventionType, description } = req.body;
+
+  if (!incidentId || !interventionId) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
+  }
+
+  const intervention = interventions.find(
+    i => i.id === Number(interventionId) && i.incidentId === Number(incidentId)
+  );
+  if (!intervention) {
+    return next(new RouteError(HttpStatusCodes.NOT_FOUND, "Intervención no encontrada"));
+  }
+
+  if (date) {
+    const interventionDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (interventionDate > today) {
+      return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "La fecha no puede ser futura"));
     }
-
-    const intervencion = await prisma.intervencion.create({
-      data: {
-        incidenteId: BigInt(incidenteId),
-        realizadaPorId: BigInt(realizadaPor),
-        fecha: interventionDate,
-        tipo,
-        descripcion,
-      },
-    });
-
-    res.status(HttpStatusCodes.CREATED).json({ interventionId: intervencion.id.toString() });
-  } catch (error) {
-    return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al crear la intervención"));
+    intervention.date = date;
   }
-});
+  if (interventionType) intervention.interventionType = interventionType;
+  if (description) intervention.description = description;
 
+  res.status(HttpStatusCodes.OK).json({ id: intervention.id });
+})
+
+app.get("/intervention", (req: Request, res: Response, next: NextFunction) => {
+  const { incidentId } = req.query;
+
+  if (!incidentId) {
+    return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Falta incidentId"));
+  }
+
+  const result = interventions
+    .filter(i => i.incidentId === Number(incidentId))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  res.json(result);
+})
 /*        ANOTACIONES POSITIVAS      */
 
 app.put("/positive_remark", (req: Request, res: Response, next: NextFunction) => {
@@ -346,8 +456,8 @@ app.put("/admin/user", async (req: Request, res: Response, next: NextFunction) =
     }
 
     // Hashear contraseña
-    const bcrypt = await import('bcrypt');
-    const contrasenaHash = await bcrypt.hash(password, 12);
+    const { bcryptHash } = await import('@src/crypto/cryptoService');
+    const contrasenaHash = await bcryptHash(password);
 
     // Guardar en BD
     const nuevo = await prisma.usuario.create({
@@ -377,7 +487,9 @@ app.delete("/admin/user", (req: Request, res: Response, next: NextFunction) => {
 // Add error handler
 app.use((err: Error, _: Request, res: Response, next: NextFunction) => {
   if (err instanceof RouteError) {
+    console.log(`error ${err.status}:`, err.message);
     res.status(err.status).json({ error: err.message });
+    return;
   }
   return next(err);
 });

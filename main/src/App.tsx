@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import './App.scss'
 import { LoginScreen } from './screens/LoginScreen.tsx'
 import { IncidentListScreen } from './screens/IncidentListScreen.tsx'
@@ -17,12 +17,12 @@ function App() {
 
   const showToast = (message: string) => setToast({ visible: true, message })
   const hideToast = useCallback(() => setToast(t => ({ ...t, visible: false })), [])
-
+  
   if (screen === 'login') {
     return (
       <div className="main">
         <div className="login-wrapper">
-          <LoginScreen onLogin={() => setScreen('list')} />
+          <LoginScreen onSuccess={() => setScreen("list")}/>
         </div>
       </div>
     )

@@ -2,3 +2,5 @@
 **/.env
 **/dist
 .claude/
+AGENTS.md
+.vscode/

@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",
-    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cross-env": "^10.1.0",
     "dayjs": "^1.11.20",
@@ -37,6 +37,7 @@
     "jet-paths": "^3.1.1",
     "jet-validators": "^2.3.1",
     "jsonfile": "^6.2.1",
+    "jsonwebtoken": "^9.0.3",
     "module-alias": "^2.3.4",
     "morgan": "^1.10.1",
     "tspo": "^1.0.7"
@@ -45,11 +46,12 @@
     "@eslint/js": "^10.0.1",
     "@swc/core": "^1.15.30",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
-    "@types/bcrypt": "^6.0.0",
+    "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.10",
     "@types/find": "^0.2.4",
     "@types/fs-extra": "^11.0.4",
     "@types/jsonfile": "^6.1.4",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/module-alias": "^2.0.4",
     "@types/morgan": "^1.9.10",
     "@types/node": "^25.9.1",
@@ -76,5 +78,8 @@
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
+  },
+  "allowScripts": {
+    "prisma@6.1.0": true
   }
 }
