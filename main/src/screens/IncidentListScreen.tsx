@@ -66,7 +66,9 @@ const ESTADO_BADGE: Record<string, { bg: string; color: string }> = {
 export function IncidentListScreen({ onNew, onDetail, onNewUser }: Props) {
   const [incidents, setIncidents] = useState<IncidentRow[]>([])
   const [loading, setLoading] = useState(true)
-  const { isDirective } = useAuth()
+  const { isDirective, role } = useAuth()
+  // Solo Docente/Inspector pueden registrar incidentes (regla traída de main)
+  const puedeCrear = role === 'teacher' || role === 'inspector'
 
   useEffect(() => {
     setLoading(true)
@@ -101,7 +103,9 @@ export function IncidentListScreen({ onNew, onDetail, onNewUser }: Props) {
           {isDirective && onNewUser && (
             <button className="btn-primario outline" onClick={onNewUser}>+ Crear Usuario</button>
           )}
-          <button className="btn-primario" onClick={onNew}>+ Nuevo Registro de Incidente</button>
+          {puedeCrear && (
+            <button className="btn-primario" onClick={onNew}>+ Nuevo Registro de Incidente</button>
+          )}
         </div>
       </header>
 
