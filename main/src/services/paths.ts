@@ -6,6 +6,7 @@ const Paths = {
   INCIDENT: "incident/",
   INTERVENTION: "intervention/",
   POSITIVE_REMARKS: "positive_remarks/",
+  ROLES: "roles",
   STUDENTS: {
     SEARCH: "students/search",
   },

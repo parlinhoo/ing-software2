@@ -7,16 +7,37 @@ function print(input: any) {
     console.log("[Servicio de Usuarios]", input);
 }
 
-export async function createUser(username: string, password: string, role: UserRole) {
-    print("Petición de creación de usuario enviada...");
-    const response = await axiosInstance.put(Paths.ADMIN.USER, {username, password, role});
+export type NewUser = {
+  nombre: string,
+  correo: string,
+  contrasena: string,
+  rol: string,
+}
 
-    if (response.status === HttpStatusCodes.OK) {
+export type UserAPI = {
+  id: number,
+  nombre: string,
+  correo: string,
+  rol: string,
+}
+
+export async function getRoles(): Promise<string[]> {
+    print("Petición de roles del sistema enviada...");
+    const response = await axiosInstance.get<string[]>(Paths.ROLES);
+    print("Roles obtenidos con éxito.");
+    return response.data;
+}
+
+export async function createUser(user: NewUser): Promise<UserAPI> {
+    print(`Petición de creación de usuario ${user.correo} enviada...`);
+    const response = await axiosInstance.post<UserAPI>(Paths.ADMIN.USER, user);
+
+    if (response.status === HttpStatusCodes.CREATED || response.status === HttpStatusCodes.OK) {
         print("Usuario creado con éxito.");
-        return;
+        return response.data;
     }
     else {
-        print("Ha ocurrido un error al crear usuario.");
+        print("Ha ocurrido un error al crear el usuario.");
         throw new Error();
     }
 }
