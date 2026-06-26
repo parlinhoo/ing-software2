@@ -17,6 +17,7 @@ export type IncidentActor = {
     name: string,
     rut?: string,         // nuevo
     role: IncidentRole,
+    rut?: string,
 }
 
 export type IncidentStatus = "open"|"following"|"closed";
