@@ -178,8 +178,8 @@ export async function editIncident(
 
 export async function deleteIncident(incidentId: number, motivoAnulacion?: string) {
     print(`Petición de eliminado de incidente ${incidentId} enviada...`);
-    const response = await axiosInstance.delete(Paths.INCIDENT+`?id=${incidentId}`, {
-        data: motivoAnulacion ? { motivo_anulacion: motivoAnulacion } : undefined,
+    const response = await axiosInstance.delete(`incident/${incidentId}`, {
+        data: { motivo: motivoAnulacion },
     });
 
     if (response.status === HttpStatusCodes.OK) {

@@ -43,6 +43,7 @@ function mapApiToRow(inc: IncidentAPI): IncidentRow {
     .join(', ')
   return {
     id: `I-${String(inc.incidentId).padStart(3, '0')}`,
+    rawId: String(inc.incidentId),
     fecha,
     lugar: inc.place,
     alumnos,
@@ -66,9 +67,7 @@ const ESTADO_BADGE: Record<string, { bg: string; color: string }> = {
 export function IncidentListScreen({ onNew, onDetail, onNewUser }: Props) {
   const [incidents, setIncidents] = useState<IncidentRow[]>([])
   const [loading, setLoading] = useState(true)
-  const { isDirective, role } = useAuth()
-  // Solo Docente/Inspector pueden registrar incidentes (regla traída de main)
-  const puedeCrear = role === 'teacher' || role === 'inspector'
+  const { canCreateIncident, canCreateUsers } = useAuth()
 
   useEffect(() => {
     setLoading(true)
@@ -100,10 +99,10 @@ export function IncidentListScreen({ onNew, onDetail, onNewUser }: Props) {
           <h1 className="titulo-principal">Panel de Gestión de Incidentes</h1>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          {isDirective && onNewUser && (
+          {canCreateUsers && onNewUser && (
             <button className="btn-primario outline" onClick={onNewUser}>+ Crear Usuario</button>
           )}
-          {puedeCrear && (
+          {canCreateIncident && (
             <button className="btn-primario" onClick={onNew}>+ Nuevo Registro de Incidente</button>
           )}
         </div>
@@ -198,7 +197,7 @@ export function IncidentListScreen({ onNew, onDetail, onNewUser }: Props) {
               incidentesFiltrados.map(inc => {
                 const badge = GRAVEDAD_BADGE[inc.gravedad]
                 return (
-                  <tr key={inc.id} onClick={() => onDetail(inc.id)} style={{ cursor: 'pointer' }}>
+                  <tr key={inc.id} onClick={() => onDetail(inc.rawId)} style={{ cursor: 'pointer' }}>
                     <td>{inc.id}</td>
                     <td>{inc.fecha}</td>
                     <td>{inc.lugar}</td>

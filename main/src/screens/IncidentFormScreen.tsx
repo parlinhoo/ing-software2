@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useIncidentForm } from '../hooks/useIncidentForm.ts'
 import { useStudentSearch } from '../hooks/useStudentSearch.ts'
 import { registerIncident, type StudentData } from '../services/incidentService.ts'
+import { useAuth } from '../context/authContext.tsx'
 import type { IncidentFormData } from '../hooks/useIncidentForm.ts'
 import type { Severity, IncidentRole, IncidentActor } from '../types/index.ts'
 import { SEVERITY_MAP, ROLE_MAP } from '../constants/formMappings.ts'
@@ -22,6 +23,7 @@ export type AddedStudent = {
 }
 
 export function IncidentFormScreen({ onSave, onCancel }: Props) {
+  const { user } = useAuth()
   const [query, setQuery]               = useState('')
   const [added, setAdded]               = useState<AddedStudent[]>([])
   const [studentError, setStudentError] = useState<string | null>(null)
@@ -51,13 +53,13 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
     const studentValidationError = validateStudents()
     if (studentValidationError) { setStudentError(studentValidationError); return }
 
-    const actors: IncidentActor[] = added.map(a => ({ name: a.name, role: ROLE_MAP[a.role] as IncidentRole }))
+    const actors: IncidentActor[] = added.map(a => ({ name: a.name, rut: a.rut, role: ROLE_MAP[a.role] as IncidentRole }))
 
     setIsSubmitting(true)
     setSubmitError(null)
     try {
       await registerIncident(
-        'usuario-actual',
+        String(user?.id ?? ''),
         data.tipoIncidente,
         SEVERITY_MAP[data.gravedad] as Severity,
         actors,

@@ -92,9 +92,7 @@ export function IncidentDetailScreen({ incidentId, showSuccess = false, onClose,
   const [stateMessage, setStateMessage] = useState('Estado del incidente actualizado')
   const [showStateSuccess, setShowStateSuccess] = useState(false)
 
-  const { isDirective, isOrientator } = useAuth()
-  const canManageInterventions = isOrientator || isDirective
-  const canChangeState = isOrientator || isDirective
+  const { canViewInterventions, canManageInterventions, canChangeState, canAnnulIncident } = useAuth()
 
   useEffect(() => {
     const numericId = incidentId.replace(/^I-0*/, '') || '0'
@@ -295,7 +293,7 @@ export function IncidentDetailScreen({ incidentId, showSuccess = false, onClose,
         </section>
       </div>
 
-      <section className="seccion-card mt-3">
+      {canViewInterventions && <section className="seccion-card mt-3">
         <h2 className="titulo-seccion">Seguimiento</h2>
         {interventions.length === 0 ? (
           <EmptyState
@@ -369,14 +367,14 @@ export function IncidentDetailScreen({ incidentId, showSuccess = false, onClose,
             })}
           </div>
         )}
-      </section>
+      </section>}
 
       <div className="acciones-formulario">
         <button type="button" className="btn-secundario" onClick={onClose}>Cerrar Vista</button>
         <button type="button" className="btn-primario outline" onClick={onEdit}>
           <Icon src={editIcon} alt="editar" size="action" /> Editar Incidente
         </button>
-        {onIntervention && isOrientator && (
+        {onIntervention && canManageInterventions && (
           <button
             type="button"
             className="btn-primario"
@@ -386,7 +384,7 @@ export function IncidentDetailScreen({ incidentId, showSuccess = false, onClose,
             Registrar Acción de Seguimiento
           </button>
         )}
-        {isDirective && (
+        {canAnnulIncident && (
           <button
             type="button"
             className="btn-primario"

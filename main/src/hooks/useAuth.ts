@@ -21,7 +21,16 @@ export function useAuth() {
 
   return {
     role,
-    isDirective: role === 'directive' || role === 'admin',
+    // Permisos según reglas de negocio
+    canViewList:            role === 'teacher' || role === 'inspector' || role === 'orientator' || role === 'directive',
+    canCreateIncident:      role === 'teacher' || role === 'inspector',
+    canViewInterventions:   role === 'orientator',
+    canManageInterventions: role === 'orientator',
+    canChangeState:         role === 'orientator' || role === 'directive',
+    canAnnulIncident:       role === 'directive',
+    canCreateUsers:         role === 'admin',
+    // Alias de compatibilidad
+    isDirective:  role === 'directive' || role === 'admin',
     isOrientator: role === 'orientator',
   }
 }

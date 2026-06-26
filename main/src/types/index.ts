@@ -16,6 +16,7 @@ export type IncidentRole = "aggressor"|"victim"|"witness"|"participant";
 export type IncidentActor = {
     name: string,
     role: IncidentRole,
+    rut?: string,
 }
 
 export type IncidentStatus = "open"|"following"|"closed";

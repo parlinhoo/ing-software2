@@ -21,6 +21,20 @@ export type UserAPI = {
   rol: string,
 }
 
+export type UserListItem = {
+  id: string
+  nombre: string
+  correo: string
+  rol: string
+  activo: boolean
+  creadoEn: string
+}
+
+export async function getUsers(): Promise<UserListItem[]> {
+  const response = await axiosInstance.get<UserListItem[]>(Paths.ADMIN.USERS)
+  return response.data
+}
+
 export async function getRoles(): Promise<string[]> {
     print("Petición de roles del sistema enviada...");
     const response = await axiosInstance.get<string[]>(Paths.ROLES);
@@ -42,30 +56,17 @@ export async function createUser(user: NewUser): Promise<UserAPI> {
     }
 }
 
-export async function editUser(username: string, password?: string, role?: UserRole) {
-    print("Petición de editado de usuario enviada...");
-    const response = await axiosInstance.post(Paths.ADMIN.USER, {username, password, role});
-
-    if (response.status === HttpStatusCodes.OK) {
-        print("Usuario editado con éxito.");
-        return;
-    }
-    else {
-        print("Ha ocurrido un error al editar usuario.");
-        throw new Error();
-    }
+export type EditUser = {
+  nombre: string
+  correo: string
+  rol: string
+  contrasena?: string
 }
 
-export async function deleteUser(username: string) {
-    print("Petición de eliminado de usuario enviada...");
-    const response = await axiosInstance.delete(Paths.ADMIN.USER+`?username=${username}`);
+export async function updateUser(id: string, data: EditUser): Promise<void> {
+  await axiosInstance.put(`${Paths.ADMIN.USER}/${id}`, data)
+}
 
-    if (response.status === HttpStatusCodes.OK) {
-        print("Usuario eliminado con éxito.");
-        return;
-    }
-    else {
-        print("Ha ocurrido un error al eliminar usuario.");
-        throw new Error();
-    }
+export async function toggleUserActive(id: string, activo: boolean): Promise<void> {
+  await axiosInstance.patch(`${Paths.ADMIN.USER}/${id}/activo`, { activo })
 }

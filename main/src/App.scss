@@ -488,6 +488,12 @@ button:focus-visible { outline: 2px solid var(--color-primario); outline-offset:
   color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center;
   box-shadow: var(--sombra-sm);
 }
+.topbar-logout {
+  padding: 6px 14px; border-radius: var(--radio-borde); border: 1px solid var(--color-borde);
+  background: transparent; color: var(--color-texto-medio); font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
+  &:hover { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+}
 
 /* ============================================================
    Skeleton loaders

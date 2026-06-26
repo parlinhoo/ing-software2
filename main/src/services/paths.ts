@@ -14,6 +14,7 @@ const Paths = {
     INCIDENT_TYPE: "admin/incident_type",
     CASE_STATE: "admin/case_state",
     USER: "admin/user",
+    USERS: "admin/users",
   },
 } as const;
 
