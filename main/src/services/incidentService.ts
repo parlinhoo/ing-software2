@@ -24,7 +24,9 @@ export type IncidentAPI = {
 }
 
 export async function fetchIncidents(): Promise<IncidentAPI[]> {
+
   const response = await axiosInstance.get<IncidentAPI[]>(Paths.INCIDENT)
+  console.log(response.data)
   return response.data
 }
 
@@ -82,7 +84,7 @@ export async function registerIncident(
     }
 
     print("Petición de creado de incidente enviada...");
-    const response = await axiosInstance.post(Paths.INCIDENT, data);
+    const response = await axiosInstance.post(Paths.INCIDENT_REGISTER, data);
 
     if (response.status === HttpStatusCodes.CREATED) {
         print("Incidente creado con éxito.");

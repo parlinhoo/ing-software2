@@ -4,6 +4,7 @@ const Paths = {
   },
   DASHBOARD_DATA: "data/",
   INCIDENT: "incident/",
+  INCIDENT_REGISTER: "incident/register",    // nuevo
   INTERVENTION: "intervention/",
   POSITIVE_REMARKS: "positive_remarks/",
   STUDENTS: {

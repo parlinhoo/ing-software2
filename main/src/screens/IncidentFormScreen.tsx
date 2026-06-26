@@ -51,7 +51,11 @@ export function IncidentFormScreen({ onSave, onCancel }: Props) {
     const studentValidationError = validateStudents()
     if (studentValidationError) { setStudentError(studentValidationError); return }
 
-    const actors: IncidentActor[] = added.map(a => ({ name: a.name, role: ROLE_MAP[a.role] as IncidentRole }))
+  const actors: IncidentActor[] = added.map(a => ({ 
+    name: a.name, 
+    rut: a.rut,                                          // nuevo
+    role: ROLE_MAP[a.role] as IncidentRole 
+  }))
 
     setIsSubmitting(true)
     setSubmitError(null)
