@@ -53,7 +53,7 @@ export function IncidentEditScreen({ incidentId, onSave, onCancel }: Props) {
 
         setAdded(inc.actors.map(a => ({
           name:  a.name,
-          rut:   '',
+          rut:   a.rut ?? '',
           class: '',
           role:  ROLE_DISPLAY[a.role] ?? a.role,
         })))
@@ -93,6 +93,7 @@ export function IncidentEditScreen({ incidentId, onSave, onCancel }: Props) {
 
     const actors: IncidentActor[] = added.map(a => ({
       name: a.name,
+      rut: a.rut || undefined,
       role: ROLE_MAP[a.role] as IncidentRole,
     }))
 

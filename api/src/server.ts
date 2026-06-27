@@ -136,7 +136,7 @@ const ROLE_TO_BD: Record<string, string> = {
   aggressor: 'Agresor', victim: 'Víctima', witness: 'Testigo', participant: 'Testigo',
 }
 
-app.post("/incident", requireRoles("Docente", "Inspector"), async (req: Request, res: Response, next: NextFunction) => {
+app.put("/incident", requireRoles("Docente", "Inspector"), async (req: Request, res: Response, next: NextFunction) => {
   const { registerer, incidentType, severity, actors, date, place, description } = req.body;
 
   if (!incidentType || !severity || !date || !place || !description) {
@@ -199,8 +199,8 @@ app.post("/incident", requireRoles("Docente", "Inspector"), async (req: Request,
   }
 })
 
-app.put("/incident", requireRoles("Docente", "Inspector"), async (req: Request, res: Response, next: NextFunction) => {
-  const { incidentId, incidentType, severity, date, place, description } = req.body;
+app.post("/incident", requireRoles("Docente", "Inspector"), async (req: Request, res: Response, next: NextFunction) => {
+  const { incidentId, incidentType, severity, actors, date, place, description } = req.body;
 
   if (!incidentId || !incidentType || !severity || !date || !place || !description) {
     return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "Faltan campos obligatorios"));
@@ -212,20 +212,48 @@ app.put("/incident", requireRoles("Docente", "Inspector"), async (req: Request, 
       prisma.tipoIncidente.findFirstOrThrow({ where: { nombre: TYPE_TO_BD[incidentType] ?? 'Otro' } }),
     ]);
 
-    await prisma.incidente.update({
-      where: { id: BigInt(incidentId) },
-      data: {
-        fecha: new Date(date),
-        lugar: place,
-        descripcion: description,
-        gravedadId: gravedad.id,
-        tipoIncidenteId: tipoIncidente.id,
-      },
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.incidente.update({
+        where: { id: BigInt(incidentId) },
+        data: {
+          fecha: new Date(date),
+          lugar: place,
+          descripcion: description,
+          gravedadId: gravedad.id,
+          tipoIncidenteId: tipoIncidente.id,
+        },
+      });
+
+      await tx.participacionEnIncidente.deleteMany({
+        where: { incidenteId: BigInt(incidentId) },
+      });
+
+      if (actors && actors.length > 0) {
+        for (const actor of actors) {
+          let estudiante = null;
+          if (actor.rut) {
+            estudiante = await tx.estudiante.findUnique({ where: { run: actor.rut } });
+          }
+          if (!estudiante && actor.name) {
+            estudiante = await tx.estudiante.findFirst({ where: { nombre: actor.name } });
+          }
+          if (!estudiante) continue;
+
+          const rolBD = ROLE_TO_BD[actor.role];
+          if (!rolBD) continue;
+          const rol = await tx.rolEnConflicto.findFirst({ where: { nombre: rolBD } });
+          if (!rol) continue;
+
+          await tx.participacionEnIncidente.create({
+            data: { incidenteId: BigInt(incidentId), estudianteId: estudiante.id, rolEnConflictoId: rol.id },
+          });
+        }
+      }
     });
 
     res.status(HttpStatusCodes.OK).json({ incidentId });
   } catch (error) {
-    console.error("[PUT /incident] Error:", error);
+    console.error("[POST /incident] Error:", error);
     return next(new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error al editar el incidente"));
   }
 })
@@ -270,15 +298,16 @@ const ROL_BD_TO_FRONTEND: Record<string, string> = {
 const PARTICIPACIONES_INCLUDE = {
   participaciones: {
     include: {
-      estudiante: { select: { nombre: true } },
+      estudiante: { select: { nombre: true, run: true } },
       rolEnConflicto: { select: { nombre: true } },
     },
   },
 } as const
 
-function serializeActores(participaciones: Array<{ estudiante: { nombre: string }; rolEnConflicto: { nombre: string } }>) {
+function serializeActores(participaciones: Array<{ estudiante: { nombre: string; run: string }; rolEnConflicto: { nombre: string } }>) {
   return participaciones.map(p => ({
     name: p.estudiante.nombre,
+    rut: p.estudiante.run,
     role: ROL_BD_TO_FRONTEND[p.rolEnConflicto.nombre] ?? p.rolEnConflicto.nombre,
   }))
 }
@@ -292,6 +321,9 @@ app.get("/incident", async (req: Request, res: Response, next: NextFunction) => 
     const result = incidentes.map(i => ({
       // mantengo `id` para compatibilidad con tests existentes
       id: i.id.toString(),
+      fecha: i.fecha,
+      lugar: i.lugar,
+      descripcion: i.descripcion,
       gravedadId: i.gravedadId.toString(),
       tipoIncidenteId: i.tipoIncidenteId.toString(),
       estadoCasoId: i.estadoCasoId.toString(),
@@ -663,7 +695,7 @@ app.post("/admin/user", async (req: Request, res: Response, next: NextFunction) 
 })
 
 app.put("/admin/user/:id", async (req: Request, res: Response, next: NextFunction) => {
-  const id = BigInt(req.params.id);
+  const id = BigInt(req.params.id as string);
   const { nombre, correo, contrasena, rol: rolNombre } = req.body;
 
   if (!nombre || !correo || !rolNombre) {
@@ -697,7 +729,7 @@ app.put("/admin/user/:id", async (req: Request, res: Response, next: NextFunctio
 })
 
 app.patch("/admin/user/:id/activo", async (req: Request, res: Response, next: NextFunction) => {
-  const id = BigInt(req.params.id);
+  const id = BigInt(req.params.id as string);
   const { activo } = req.body;
   if (typeof activo !== 'boolean') {
     return next(new RouteError(HttpStatusCodes.BAD_REQUEST, "El campo 'activo' es obligatorio y debe ser booleano"));

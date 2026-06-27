@@ -127,8 +127,6 @@ export function requireRoles(...roles: Roles[]) {
                 throw new RouteError(HttpStatusCodes.NOT_FOUND, "El rol especificado no existe en la base de datos.");
             }
 
-            console.log("nombre:", fetchedRole.nombre);
-
             if (!roles.includes(fetchedRole.nombre as Roles)) {
                 throw new RouteError(HttpStatusCodes.FORBIDDEN, "Acceso denegado. No tienes los permisos necesarios.");
             }
