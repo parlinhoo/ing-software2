@@ -24,6 +24,15 @@ export const ROLE_DISPLAY: Record<string, string> = {
   participant: 'Participante',
 }
 
+// Roles de usuario del sistema (para gestión de funcionarios)
+export const USER_ROLE_DISPLAY: Record<string, string> = {
+  teacher:    'Profesor',
+  inspector:  'Inspector',
+  orientator: 'Orientador',
+  directive:  'Directivo',
+  admin:      'Administrador',
+}
+
 // Opciones de lugares disponibles
 export const PLACE_OPTIONS = ['Aula 3', 'Patio 1', 'Comedor', 'Biblioteca']
 

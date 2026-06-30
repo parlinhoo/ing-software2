@@ -5,15 +5,17 @@ import minorIcon from '../assets/img/minor.png'
 import seriousIcon from '../assets/img/serious.png'
 import verySerious from '../assets/img/very_serious.png'
 import { SearchStudentComponent } from '../components/SearchStudentComponent.tsx'
+import { EmptyState } from '../components/EmptyState.tsx'
+import { SkeletonRow } from '../components/Skeleton.tsx'
 import { useIncidentFilters, type IncidentRow } from '../hooks/useIncidentFilters.ts'
 import { fetchIncidents, type IncidentAPI } from '../services/incidentService.ts'
+import { useAuth } from '../hooks/useAuth.ts'
 import { useEffect, useState } from 'react'
-import { usePermissions } from '../hooks/usePermissions.ts'
-import { useAuth } from '../context/authContext.tsx'
 
 type Props = {
   onNew: () => void
   onDetail: (incidentId: string) => void
+  onNewUser?: () => void
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -22,6 +24,12 @@ const ROLE_LABEL: Record<string, string> = {
 
 const SEVERITY_LABEL: Record<string, string> = {
   mild: 'leve', severe: 'grave', very_severe: 'muy-grave', verysevere: 'muy-grave',
+}
+
+const ESTADO_LABEL: Record<string, string> = {
+  abierto: 'Abierto',
+  en_seguimiento: 'En Seguimiento',
+  cerrado: 'Cerrado',
 }
 
 function mapApiToRow(inc: IncidentAPI): IncidentRow {
@@ -35,11 +43,12 @@ function mapApiToRow(inc: IncidentAPI): IncidentRow {
     .join(', ')
   return {
     id: `I-${String(inc.incidentId).padStart(3, '0')}`,
+    rawId: String(inc.incidentId),
     fecha,
     lugar: inc.place,
     alumnos,
     gravedad: SEVERITY_LABEL[inc.severity] ?? 'leve',
-    estado: 'Abierto',
+    estado: ESTADO_LABEL[inc.estado ?? 'abierto'] ?? 'Abierto',
   }
 }
 
@@ -49,16 +58,23 @@ const GRAVEDAD_BADGE: Record<string, { src: string; label: string }> = {
   'muy-grave': { src: verySerious, label: 'Muy Grave' },
 }
 
-export function IncidentListScreen({ onNew, onDetail }: Props) {
-  const { can } = usePermissions()
-  const [incidents, setIncidents] = useState<IncidentRow[]>([])  
-  const { user } = useAuth()
-  const puedeCrear = user?.role.name === 'Docente' || user?.role.name === 'Inspector'
+const ESTADO_BADGE: Record<string, { bg: string; color: string }> = {
+  'Abierto':        { bg: '#dcfce7', color: '#166534' },
+  'En Seguimiento': { bg: '#fef9c3', color: '#854d0e' },
+  'Cerrado':        { bg: '#e5e7eb', color: '#374151' },
+}
+
+export function IncidentListScreen({ onNew, onDetail, onNewUser }: Props) {
+  const [incidents, setIncidents] = useState<IncidentRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const { canCreateIncident, canCreateUsers } = useAuth()
 
   useEffect(() => {
+    setLoading(true)
     fetchIncidents()
       .then(data => setIncidents(data.map(mapApiToRow)))
       .catch(() => setIncidents([]))
+      .finally(() => setLoading(false))
   }, [])
 
   const _now = new Date()
@@ -82,9 +98,14 @@ export function IncidentListScreen({ onNew, onDetail }: Props) {
           <span className="contexto-texto">Pantalla Principal / Listado de Incidentes</span>
           <h1 className="titulo-principal">Panel de Gestión de Incidentes</h1>
         </div>
-        {puedeCrear && (
-          <button className="btn-primario" onClick={onNew}>+ Nuevo Registro de Incidente</button>
-        )}
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {canCreateUsers && onNewUser && (
+            <button className="btn-primario outline" onClick={onNewUser}>+ Crear Usuario</button>
+          )}
+          {canCreateIncident && (
+            <button className="btn-primario" onClick={onNew}>+ Nuevo Registro de Incidente</button>
+          )}
+        </div>
       </header>
 
       <section className="tarjetas-resumen">
@@ -160,17 +181,23 @@ export function IncidentListScreen({ onNew, onDetail }: Props) {
             </tr>
           </thead>
           <tbody>
-            {incidentesFiltrados.length === 0 ? (
+            {loading ? (
+              Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={6} />)
+            ) : incidentesFiltrados.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
-                  No se encontraron incidentes
+                <td colSpan={6} style={{ padding: 0 }}>
+                  <EmptyState
+                    icon="🔍"
+                    title="No se encontraron incidentes"
+                    description="Ajusta los filtros o registra un nuevo incidente para comenzar."
+                  />
                 </td>
               </tr>
             ) : (
               incidentesFiltrados.map(inc => {
                 const badge = GRAVEDAD_BADGE[inc.gravedad]
                 return (
-                  <tr key={inc.id} onClick={() => onDetail(inc.id)} style={{ cursor: 'pointer' }}>
+                  <tr key={inc.id} onClick={() => onDetail(inc.rawId)} style={{ cursor: 'pointer' }}>
                     <td>{inc.id}</td>
                     <td>{inc.fecha}</td>
                     <td>{inc.lugar}</td>
@@ -182,7 +209,16 @@ export function IncidentListScreen({ onNew, onDetail }: Props) {
                         </span>
                       )}
                     </td>
-                    <td>{inc.estado}</td>
+                    <td>
+                      {(() => {
+                        const estadoBadge = ESTADO_BADGE[inc.estado]
+                        return estadoBadge ? (
+                          <span className="badge" style={{ background: estadoBadge.bg, color: estadoBadge.color }}>
+                            {inc.estado}
+                          </span>
+                        ) : inc.estado
+                      })()}
+                    </td>
                   </tr>
                 )
               })
