@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 
+// El endpoint /students/search usa searchStudents (búsqueda combinada nombre+RUT
+// con coincidencia parcial). Mockeamos esa función para no depender de la BD.
 vi.mock('@src/services/studentService', () => ({
-  getStudentByRUN: vi.fn(),
-  getStudentsByName: vi.fn(),
+  searchStudents: vi.fn(),
 }));
 
 import app from '@src/server';
@@ -17,8 +18,7 @@ type StudentData = {
 };
 
 const mockedStudentService = studentService as unknown as {
-  getStudentByRUN: ReturnType<typeof vi.fn>;
-  getStudentsByName: ReturnType<typeof vi.fn>;
+  searchStudents: ReturnType<typeof vi.fn>;
 };
 
 // Orientador Andrea: userId 5, roleId 4. Cualquier rol autorizado sirve para /students/search.
@@ -30,14 +30,14 @@ describe('API server', () => {
   });
 
   describe('GET /students/search - búsqueda por RUT', () => {
-    it('retorna el estudiante envuelto en array cuando el RUT existe', async () => {
+    it('retorna el estudiante cuando el RUT existe', async () => {
       const expectedStudent: StudentData = {
         rut: '11111111-1',
         name: 'Juan Pérez',
         class: '4B',
       };
 
-      mockedStudentService.getStudentByRUN.mockResolvedValueOnce(expectedStudent);
+      mockedStudentService.searchStudents.mockResolvedValueOnce([expectedStudent]);
 
       const response = await request(app)
         .get('/students/search')
@@ -46,11 +46,11 @@ describe('API server', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual([expectedStudent]);
-      expect(mockedStudentService.getStudentByRUN).toHaveBeenCalledWith('11111111-1');
+      expect(mockedStudentService.searchStudents).toHaveBeenCalledWith('11111111-1');
     });
 
     it('retorna array vacío cuando el RUT no existe', async () => {
-      mockedStudentService.getStudentByRUN.mockResolvedValueOnce(null);
+      mockedStudentService.searchStudents.mockResolvedValueOnce([]);
 
       const response = await request(app)
         .get('/students/search')
@@ -68,7 +68,7 @@ describe('API server', () => {
         { rut: '12345678-9', name: 'Juan Pérez', class: '4B' },
       ];
 
-      mockedStudentService.getStudentsByName.mockResolvedValueOnce(expectedStudents);
+      mockedStudentService.searchStudents.mockResolvedValueOnce(expectedStudents);
 
       const response = await request(app)
         .get('/students/search')
@@ -77,7 +77,7 @@ describe('API server', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(expectedStudents);
-      expect(mockedStudentService.getStudentsByName).toHaveBeenCalledWith('Juan Pérez');
+      expect(mockedStudentService.searchStudents).toHaveBeenCalledWith('Juan Pérez');
     });
 
     it('retorna varios estudiantes cuando hay más de una coincidencia por nombre', async () => {
@@ -86,7 +86,7 @@ describe('API server', () => {
         { rut: '98765432-1', name: 'Juan Pérez', class: '3A' },
       ];
 
-      mockedStudentService.getStudentsByName.mockResolvedValueOnce(expectedStudents);
+      mockedStudentService.searchStudents.mockResolvedValueOnce(expectedStudents);
 
       const response = await request(app)
         .get('/students/search')
@@ -100,7 +100,7 @@ describe('API server', () => {
     });
 
     it('retorna array vacío cuando no hay estudiantes con ese nombre', async () => {
-      mockedStudentService.getStudentsByName.mockResolvedValueOnce([]);
+      mockedStudentService.searchStudents.mockResolvedValueOnce([]);
 
       const response = await request(app)
         .get('/students/search')

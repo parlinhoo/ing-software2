@@ -20,3 +20,11 @@ server.listen(environment.API_PORT, (err) => {
     console.log(SERVER_START_MESSAGE);
   }
 });
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection] Promesa rechazada sin captura:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException] Excepción no capturada:', err);
+});

@@ -42,7 +42,7 @@ describe('T-15 - POST /intervention', () => {
       });
 
     expect(res.status).toBe(201);
-    const intervencionId = BigInt(res.body.interventionId);
+    const intervencionId = BigInt(res.body.id);
 
     const intervencion = await prisma.intervencion.findUnique({
       where: { id: intervencionId },

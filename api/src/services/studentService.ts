@@ -57,3 +57,26 @@ export async function getStudentsByName(nombre: string): Promise<StudentData[]> 
     return [];
   }
 }
+
+export async function searchStudents(query: string): Promise<StudentData[]> {
+  try {
+    const students = await prisma.estudiante.findMany({
+      where: {
+        OR: [
+          { nombre: { contains: query, mode: 'insensitive' } },
+          { run: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      take: 10,
+      select: { run: true, nombre: true, curso: true },
+    });
+    return students.map((student: {run: string, nombre: string, curso: string}) => ({
+      rut: student.run,
+      name: student.nombre,
+      class: student.curso,
+    }));
+  } catch (error) {
+    console.error('Error searchStudents', error);
+    return [];
+  }
+}

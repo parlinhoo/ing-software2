@@ -42,6 +42,7 @@ export async function authenticate(email: string, password: string): Promise<Use
             id: true,
             nombre: true,
             contrasenaHash: true,
+            activo: true,
             rol: {
                 select: { nombre: true, id: true },
             },
@@ -53,6 +54,10 @@ export async function authenticate(email: string, password: string): Promise<Use
     const success = await bcryptCompare(password, fetchedUser.contrasenaHash);
 
     if (!success) throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Credenciales Inválidas.");
+
+    // Cuenta desactivada (US-04): se valida tras la contraseña para no revelar
+    // qué correos existen. Mensaje distinto para que el usuario sepa el motivo real.
+    if (!fetchedUser.activo) throw new RouteError(HttpStatusCodes.FORBIDDEN, "Esta cuenta está desactivada. Contacta al administrador.");
 
     const user: User = {
         id: Number(fetchedUser.id),

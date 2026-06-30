@@ -59,10 +59,10 @@ describe('T-12 - DELETE /incident/:id (eliminación lógica)', () => {
       .set('Authorization', `Bearer ${tokenDirectivo}`)
       .send({ motivo: 'Prueba de filtrado' });
 
-    // Consultar listado
-    const res = await request(app).get('/incident');
+    // Consultar listado (el GET exige rol; Directivo ve todos los incidentes)
+    const res = await request(app).get('/incident').set('Authorization', `Bearer ${tokenDirectivo}`);
     expect(res.status).toBe(200);
-
+    
     const ids = res.body.map((i: { id: string }) => i.id);
     expect(ids).not.toContain(incidenteId.toString());
 
