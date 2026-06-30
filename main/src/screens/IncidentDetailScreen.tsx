@@ -10,7 +10,7 @@ import verySerious from '../assets/img/very_serious.png'
 import editIcon from '../assets/img/edit.png'
 import { getIncidentDetail, deleteIncident, getInterventions, deleteIntervention, setIncidentState, type IncidentAPI, type InterventionAPI, type IncidentState } from '../services/incidentService.ts'
 import { INCIDENT_TYPE_OPTIONS, ROLE_DISPLAY } from '../constants/formMappings.ts'
-import { useAuth } from '../hooks/useAuth.ts'
+import { usePermissions } from '../hooks/usePermissions.ts'
 
 const STATE_FALLBACK = { label: 'Abierto', bg: '#dcfce7', color: '#166534' }
 
@@ -34,6 +34,22 @@ const INTERVENTION_LABELS: Record<string, { label: string; color: string }> = {
   derivacion: { label: 'Derivación', color: '#c2410c' },
   tutoria:    { label: 'Tutoría',    color: '#7e22ce' },
   otra:       INTERVENTION_FALLBACK,
+}
+
+// Resuelve el badge para cualquier `tipo`: las claves del formulario
+// (citacion/derivacion/tutoria/otra) o las frases descriptivas del seed/texto libre.
+// Para estas últimas muestra el texto real y asigna color por palabra clave.
+function resolveTipo(tipo: string): { label: string; color: string } {
+  const exact = INTERVENTION_LABELS[tipo]
+  if (exact) return exact
+  const t = tipo.toLowerCase()
+  if (t.includes('deriv'))                                          return { label: tipo, color: '#c2410c' }
+  if (t.includes('citaci') || t.includes('reuni') || t.includes('apoderado')) return { label: tipo, color: '#1d4ed8' }
+  if (t.includes('diálogo') || t.includes('dialogo') || t.includes('mediaci') || t.includes('restaurativ') || t.includes('tutor')) return { label: tipo, color: '#7e22ce' }
+  if (t.includes('protocolo'))                                      return { label: tipo, color: '#b91c1c' }
+  if (t.includes('reparaci') || t.includes('acuerdo'))             return { label: tipo, color: '#15803d' }
+  if (t.includes('conversaci') || t.includes('formativa'))         return { label: tipo, color: '#0f766e' }
+  return { label: tipo, color: '#374151' }
 }
 
 function formatInterventionDate(dateStr: string) {
@@ -62,7 +78,6 @@ const SEVERITY_DISPLAY: Record<string, { label: string; badge: string; icon: str
   verysevere:  { label: 'Muy Grave', badge: 'badge-muy-grave', icon: verySerious },
 }
 
-
 function formatFecha(dateStr: string) {
   const date = new Date(dateStr)
   const d = String(date.getDate()).padStart(2, '0')
@@ -79,6 +94,14 @@ function formatHora(dateStr: string) {
 }
 
 export function IncidentDetailScreen({ incidentId, showSuccess = false, onClose, onEdit, onIntervention, onEditIntervention }: Props) {
+  const { can } = usePermissions()
+  // Mapeo de permisos: el detalle de Nico usaba useAuth(); aquí usamos el modelo centralizado.
+  const canViewInterventions   = can('ver_seguimientos')
+  const canManageInterventions = can('agregar_seguimientos')
+  const canChangeState         = can('cambiar_estado_incidente')
+  const canAnnulIncident       = can('anular_incidente')
+  const canEditIncident        = can('editar_incidente')
+
   const [incident, setIncident] = useState<IncidentAPI | null>(null)
   const [interventions, setInterventions] = useState<InterventionAPI[]>([])
   const [loading, setLoading]   = useState(true)
@@ -91,8 +114,6 @@ export function IncidentDetailScreen({ incidentId, showSuccess = false, onClose,
   const [stateError, setStateError] = useState<string | null>(null)
   const [stateMessage, setStateMessage] = useState('Estado del incidente actualizado')
   const [showStateSuccess, setShowStateSuccess] = useState(false)
-
-  const { canViewInterventions, canManageInterventions, canChangeState, canAnnulIncident } = useAuth()
 
   useEffect(() => {
     const numericId = incidentId.replace(/^I-0*/, '') || '0'
@@ -304,7 +325,7 @@ export function IncidentDetailScreen({ incidentId, showSuccess = false, onClose,
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
             {interventions.map(intv => {
-              const tipo = INTERVENTION_LABELS[intv.tipo] ?? INTERVENTION_FALLBACK
+              const tipo = resolveTipo(intv.tipo)
               return (
                 <div key={intv.id} style={{
                   border: '1px solid var(--color-borde)',
@@ -371,9 +392,11 @@ export function IncidentDetailScreen({ incidentId, showSuccess = false, onClose,
 
       <div className="acciones-formulario">
         <button type="button" className="btn-secundario" onClick={onClose}>Cerrar Vista</button>
-        <button type="button" className="btn-primario outline" onClick={onEdit}>
-          <Icon src={editIcon} alt="editar" size="action" /> Editar Incidente
-        </button>
+        {canEditIncident && (
+          <button type="button" className="btn-primario outline" onClick={onEdit}>
+            <Icon src={editIcon} alt="editar" size="action" /> Editar Incidente
+          </button>
+        )}
         {onIntervention && canManageInterventions && (
           <button
             type="button"

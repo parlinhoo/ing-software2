@@ -1,8 +1,6 @@
-import { TextField, InputAdornment, Alert, CircularProgress, IconButton } from "@mui/material";
+import { TextField, InputAdornment, Alert, CircularProgress } from "@mui/material";
 import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import heroImg from '../assets/img/Hero_Convivencia_Escolar.png'
 import "./css/LoginScreen.scss"
 import { useState } from "react";
@@ -18,7 +16,6 @@ export function LoginScreen( {onSuccess}: {onSuccess: () => void} ) {
     const [password, setPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [showPassword, setShowPassword] = useState(false);
     
     const onLoginSubmit = async () => {
         if (!email || !password) {
@@ -76,7 +73,7 @@ export function LoginScreen( {onSuccess}: {onSuccess: () => void} ) {
                     required
                     className="password-input"
                     label="Contraseña"
-                    type={showPassword ? "text" : "password"}
+                    type="password"
                     variant="outlined"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -85,18 +82,6 @@ export function LoginScreen( {onSuccess}: {onSuccess: () => void} ) {
                             startAdornment: (
                                 <InputAdornment position="start">
                                     <LockIcon />
-                                </InputAdornment>
-                            ),
-                            endAdornment: (
-                                <InputAdornment position="end">
-                                    <IconButton
-                                        onClick={() => setShowPassword(v => !v)}
-                                        edge="end"
-                                        size="small"
-                                        tabIndex={-1}
-                                    >
-                                        {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                                    </IconButton>
                                 </InputAdornment>
                             ),
                         }

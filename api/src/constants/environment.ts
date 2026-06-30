@@ -1,11 +1,6 @@
 import * as dotenv from "dotenv";
 
-// DOTENV_CONFIG_PATH lo setea el script dev:basic; override:true garantiza
-// que el .env del proyecto siempre gane sobre variables de sistema.
-dotenv.config({
-  path: process.env.DOTENV_CONFIG_PATH ?? '.env',
-  override: true,
-});
+dotenv.config();
 
 const jwtSecret = process.env.JWT_SECRET;
 

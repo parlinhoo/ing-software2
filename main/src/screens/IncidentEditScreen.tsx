@@ -93,10 +93,10 @@ export function IncidentEditScreen({ incidentId, onSave, onCancel }: Props) {
 
     const actors: IncidentActor[] = added.map(a => ({
       name: a.name,
-      rut: a.rut || undefined,
+      rut: a.rut,
       role: ROLE_MAP[a.role] as IncidentRole,
     }))
-
+    
     setIsSubmitting(true)
     setSubmitError(null)
     try {

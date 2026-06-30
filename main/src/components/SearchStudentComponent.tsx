@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { searchStudents, type StudentData } from "../services/incidentService.ts";
-import { getStudentClassOptionsRegex, isValidRut } from "../utils/formatUtils.ts";
+import { getStudentClassOptionsRegex } from "../utils/formatUtils.ts";
 
 export function SearchStudentComponent({ query, onQueryChange, setOptions, className, placeholder, onInputInvalid, onSearchStart, onSearchError, onSearchComplete }: {
     query: string,
@@ -22,16 +22,11 @@ export function SearchStudentComponent({ query, onQueryChange, setOptions, class
 
     if (onSearchStart) onSearchStart();
 
-    // si empieza con número puede ser RUT — validar antes de buscar
-    if (isFinite(Number(query.charAt(0)))) {
-      if (!isValidRut(query)) {
-        setOptions([]);
-        if (onSearchComplete) onSearchComplete();
-        return;
-      }
-    } else if (query.length < 3) {
-      if (onSearchComplete) onSearchComplete();
+    // Mínimo de caracteres para disparar la búsqueda (evita buscar con 1 solo dígito/letra).
+    // El backend ya busca por nombre O por RUT (coincidencia parcial), así que no validamos el RUT acá.
+    if (query.trim().length < 2) {
       setOptions([]);
+      if (onSearchComplete) onSearchComplete();
       return;
     }
 

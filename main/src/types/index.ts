@@ -15,7 +15,7 @@ export type IncidentRole = "aggressor"|"victim"|"witness"|"participant";
 
 export type IncidentActor = {
     name: string,
-    rut?: string,
+    rut?: string,         // nuevo
     role: IncidentRole,
 }
 

@@ -4,10 +4,10 @@ const Paths = {
   },
   DASHBOARD_DATA: "data/",
   INCIDENT: "incident/",
+  ROLES: "roles",
   INCIDENT_REGISTER: "incident/register",    // nuevo
   INTERVENTION: "intervention/",
   POSITIVE_REMARKS: "positive_remarks/",
-  ROLES: "roles",
   STUDENTS: {
     SEARCH: "students/search",
   },

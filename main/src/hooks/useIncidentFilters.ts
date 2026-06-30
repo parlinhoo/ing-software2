@@ -3,7 +3,6 @@ import type { StudentData } from '../services/incidentService.ts'
 
 export type IncidentRow = {
   id: string
-  rawId: string
   fecha: string
   lugar: string
   alumnos: string

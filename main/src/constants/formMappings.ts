@@ -24,17 +24,24 @@ export const ROLE_DISPLAY: Record<string, string> = {
   participant: 'Participante',
 }
 
-// Roles de usuario del sistema (para gestión de funcionarios)
-export const USER_ROLE_DISPLAY: Record<string, string> = {
-  teacher:    'Profesor',
-  inspector:  'Inspector',
-  orientator: 'Orientador',
-  directive:  'Directivo',
-  admin:      'Administrador',
-}
-
-// Opciones de lugares disponibles
-export const PLACE_OPTIONS = ['Aula 3', 'Patio 1', 'Comedor', 'Biblioteca']
+// Opciones de lugares disponibles (alineadas con los lugares del seed)
+export const PLACE_OPTIONS = [
+  'Sala 1°A Medio',
+  'Sala 2°A Medio',
+  'Sala 3°A Medio',
+  'Sala 4°A Medio',
+  'Patio central',
+  'Patio techado',
+  'Pasillo de salas',
+  'Comedor',
+  'Casino',
+  'Biblioteca',
+  'Baños del primer piso',
+  'Escaleras del segundo piso',
+  'Sala de profesores (cercanías)',
+  'Cancha de baby fútbol',
+  'Salida del establecimiento',
+]
 
 // Opciones de tipos de incidente
 export const INCIDENT_TYPE_OPTIONS = [

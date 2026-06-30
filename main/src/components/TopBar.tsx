@@ -1,15 +1,26 @@
-import { useAuth } from '../hooks/useAuth.ts'
-import { useAuth as useAuthContext } from '../context/authContext.tsx'
-import { USER_ROLE_DISPLAY } from '../constants/formMappings.ts'
+import { usePermissions } from '../hooks/usePermissions.ts'
+import { useAuth } from '../context/authContext.tsx'
 
 type Props = {
   onLogout: () => void
 }
 
+// Mapea el nombre del rol de la BD (español) al slug que usan los estilos
+// de color del badge (.topbar-rol--*). Los roles sin modificador usan el base.
+const ROLE_SLUG: Record<string, string> = {
+  'Administrador': 'admin',
+  'Equipo Directivo': 'directive',
+  'Orientador': 'orientator',
+  'Docente': 'teacher',
+  'Inspector': 'inspector',
+}
+
 export function TopBar({ onLogout }: Props) {
-  const { role } = useAuth()
-  const { logout, user } = useAuthContext()
-  const label = USER_ROLE_DISPLAY[role] ?? 'Usuario'
+  const { role } = usePermissions()
+  const { logout, user } = useAuth()
+
+  const label = role ?? 'Usuario'
+  const slug = role ? (ROLE_SLUG[role] ?? 'teacher') : 'teacher'
   const inicial = (user?.name ?? label).charAt(0).toUpperCase()
 
   function handleLogout() {
@@ -28,7 +39,7 @@ export function TopBar({ onLogout }: Props) {
       </div>
 
       <div className="topbar-user">
-        <span className={`badge topbar-rol topbar-rol--${role}`}>{label}</span>
+        <span className={`badge topbar-rol topbar-rol--${slug}`}>{label}</span>
         <span className="topbar-avatar" aria-hidden="true">{inicial}</span>
         <button className="topbar-logout" onClick={handleLogout} title="Cerrar sesión">
           Salir

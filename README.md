@@ -1,14 +1,13 @@
 # ing-software2
 
-### Software de Registro de Incidentes
+PROTOTIPO
 
-#### INICIALIZACION
+Antes, hay que entrar en api/ y en main/ y ejecutar "npm install"
 
-1. Ejecutar *npm install* dentro de api/ y main/ por separado
-2. Ejecutar *npm run db:setup* en la raíz del proyecto (ing-software2/)
+Para ejecutar, correr en api/ el comando "npm run dev"
 
-#### PASOS PARA EJECUTAR
+Luego, en otra terminal, ejecutar en main/ los comandos:
+"npm run build"
+"npm run start"
 
-1. Ejecutar *docker compose up -d* en la raíz del proyecto
-2. Ejecutar *npm run dev* dentro de api/ y main/ a la vez
-3. Ingresar a la página usando el link provisto por Vite (usualmente http://localhost:5173)
+Finalmente se ejecutará y se conectará con la api y funcionará correctamente.

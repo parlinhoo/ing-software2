@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import './App.scss'
 import { LoginScreen } from './screens/LoginScreen.tsx'
 import { IncidentListScreen } from './screens/IncidentListScreen.tsx'
@@ -6,46 +6,49 @@ import { IncidentFormScreen } from './screens/IncidentFormScreen.tsx'
 import { IncidentDetailScreen } from './screens/IncidentDetailScreen.tsx'
 import { IncidentEditScreen } from './screens/IncidentEditScreen.tsx'
 import { InterventionFormScreen } from './screens/InterventionFormScreen.tsx'
-import { UserFormScreen } from './screens/UserFormScreen.tsx'
 import { UserManagementScreen } from './screens/UserManagementScreen.tsx'
-import { UserDetailScreen } from './screens/UserDetailScreen.tsx'
 import { Toast } from './components/Toast.tsx'
 import { TopBar } from './components/TopBar.tsx'
-import { useAuth } from './hooks/useAuth.ts'
+import { RequirePermission } from './components/RequirePermission.tsx'
+import { usePermissions } from './hooks/usePermissions.ts'
+import { useAuth } from './context/authContext.tsx'
 import type { InterventionAPI } from './services/incidentService.ts'
-import type { UserListItem } from './services/userService.ts'
 
-type Screen = 'login' | 'list' | 'form' | 'detail' | 'edit' | 'intervention' | 'user-management' | 'user-form' | 'user-detail'
+type Screen = 'login' | 'list' | 'form' | 'detail' | 'edit' | 'intervention' | 'users'
 
 function App() {
   const [screen, setScreen] = useState<Screen>('login')
-  const { canViewList, canCreateIncident, canManageInterventions, canCreateUsers } = useAuth()
   const [toast, setToast] = useState({ visible: false, message: '' })
   const [activeIncidentId, setActiveIncidentId] = useState<string>('')
   const [activeIncidentDesc, setActiveIncidentDesc] = useState<string>('')
   const [editingIntervention, setEditingIntervention] = useState<InterventionAPI | undefined>(undefined)
   const [detailShowSuccess, setDetailShowSuccess] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<UserListItem | undefined>(undefined)
-  const [userMgmtRefresh, setUserMgmtRefresh] = useState(0)
+  const [pendingRoute, setPendingRoute] = useState(false)
+  const [formKey, setFormKey] = useState(0)
+
+  const { can } = usePermissions()
+  const { user } = useAuth()
 
   const showToast = (message: string) => setToast({ visible: true, message })
   const hideToast = useCallback(() => setToast(t => ({ ...t, visible: false })), [])
 
-  function resolveScreen(): Screen {
-    if (screen === 'login') return 'login'
-    if (screen === 'list' && !canViewList) return canCreateUsers ? 'user-management' : 'login'
-    if (screen === 'form' && !canCreateIncident) return 'list'
-    if (screen === 'intervention' && !canManageInterventions) return 'detail'
-    if ((screen === 'user-form' || screen === 'user-management' || screen === 'user-detail') && !canCreateUsers) return 'list'
-    return screen
-  }
-  const activeScreen = resolveScreen()
+  // Redirección post-login según el rol (se dispara solo tras un login real)
+  useEffect(() => {
+    if (pendingRoute && user) {
+      if (can('ver_listado_incidentes')) setScreen('list')
+      else if (can('crear_incidente')) setScreen('form')
+      else if (can('crear_cuentas')) setScreen('users')
+      else setScreen('list')
+      setPendingRoute(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingRoute, user])
 
-  if (activeScreen === 'login') {
+  if (screen === 'login') {
     return (
       <div className="main">
         <div className="login-wrapper">
-          <LoginScreen onSuccess={() => setScreen('list')} />
+          <LoginScreen onSuccess={() => setPendingRoute(true)} />
         </div>
       </div>
     )
@@ -56,24 +59,36 @@ function App() {
       <Toast message={toast.message} visible={toast.visible} onHide={hideToast} />
       <TopBar onLogout={() => setScreen('login')} />
 
-      <div key={activeScreen} className="screen-fade">
+      <div key={screen} className="screen-fade">
 
-      {activeScreen === 'list' && (
-        <IncidentListScreen
-          onNew={() => setScreen('form')}
-          onDetail={(id) => { setActiveIncidentId(id); setDetailShowSuccess(false); setScreen('detail') }}
-          onNewUser={() => setScreen('user-management')}
-        />
+      {screen === 'list' && (
+        <RequirePermission permission="ver_listado_incidentes">
+          <IncidentListScreen
+            onNew={() => setScreen('form')}
+            onDetail={(id) => { setActiveIncidentId(id); setDetailShowSuccess(false); setScreen('detail') }}
+          />
+        </RequirePermission>
       )}
 
-      {activeScreen === 'form' && (
-        <IncidentFormScreen
-          onSave={() => { setScreen('list'); showToast('Incidente registrado correctamente') }}
-          onCancel={() => setScreen('list')}
-        />
+      {screen === 'form' && (
+        <RequirePermission permission="crear_incidente">
+          <IncidentFormScreen
+            key={formKey}
+            onSave={() => {
+              showToast('Incidente registrado correctamente')
+              // Quien no puede ver el listado (Inspector) se queda en el form, ya limpio.
+              if (can('ver_listado_incidentes')) setScreen('list')
+              else setFormKey(k => k + 1)
+            }}
+            onCancel={() => {
+              if (can('ver_listado_incidentes')) setScreen('list')
+              else setFormKey(k => k + 1)
+            }}
+          />
+        </RequirePermission>
       )}
 
-      {activeScreen === 'detail' && (
+      {screen === 'detail' && (
         <IncidentDetailScreen
           incidentId={activeIncidentId}
           showSuccess={detailShowSuccess}
@@ -84,7 +99,7 @@ function App() {
         />
       )}
 
-      {activeScreen === 'edit' && (
+      {screen === 'edit' && (
         <IncidentEditScreen
           incidentId={activeIncidentId}
           onSave={() => { setDetailShowSuccess(true); setScreen('detail') }}
@@ -92,44 +107,22 @@ function App() {
         />
       )}
 
-      {activeScreen === 'intervention' && (
-        <InterventionFormScreen
-          incidentId={activeIncidentId}
-          incidentDescription={activeIncidentDesc}
-          editingIntervention={editingIntervention}
-          onSave={() => { setEditingIntervention(undefined); setScreen('detail') }}
-          onCancel={() => { setEditingIntervention(undefined); setScreen('detail') }}
-        />
+      {screen === 'intervention' && (
+        <RequirePermission permission="agregar_seguimientos">
+          <InterventionFormScreen
+            incidentId={activeIncidentId}
+            incidentDescription={activeIncidentDesc}
+            editingIntervention={editingIntervention}
+            onSave={() => { setEditingIntervention(undefined); setDetailShowSuccess(false); setScreen('detail') }}
+            onCancel={() => { setEditingIntervention(undefined); setScreen('detail') }}
+          />
+        </RequirePermission>
       )}
 
-      {activeScreen === 'user-management' && (
-        <UserManagementScreen
-          onNewUser={() => setScreen('user-form')}
-          onViewUser={(u) => { setSelectedUser(u); setScreen('user-detail') }}
-          onEditUser={(u) => { setSelectedUser(u); setScreen('user-form') }}
-          refreshKey={userMgmtRefresh}
-        />
-      )}
-
-      {activeScreen === 'user-form' && (
-        <UserFormScreen
-          editingUser={selectedUser}
-          onSave={(wasEditing) => {
-            setSelectedUser(undefined)
-            setUserMgmtRefresh(k => k + 1)
-            setScreen('user-management')
-            showToast(wasEditing ? 'Funcionario actualizado correctamente' : 'Usuario creado correctamente')
-          }}
-          onCancel={() => { setSelectedUser(undefined); setScreen('user-management') }}
-        />
-      )}
-
-      {activeScreen === 'user-detail' && selectedUser && (
-        <UserDetailScreen
-          user={selectedUser}
-          onEdit={() => setScreen('user-form')}
-          onBack={() => { setSelectedUser(undefined); setScreen('user-management') }}
-        />
+      {screen === 'users' && (
+        <RequirePermission permission="crear_cuentas">
+          <UserManagementScreen />
+        </RequirePermission>
       )}
 
       </div>

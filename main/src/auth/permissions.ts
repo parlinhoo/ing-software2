@@ -11,12 +11,22 @@ export const PERMISSIONS = {
   // Punto 1: boton crear incidente (US-06)
   crear_incidente:        ['Docente', 'Inspector'],
 
+  // Edición y anulación de incidentes (US-07 / US-10)
+  editar_incidente:       ['Docente', 'Inspector'],
+  anular_incidente:       ['Equipo Directivo'],
+
   // Punto 2: listado de incidentes (mi punto asignado)
-  ver_listado_incidentes: ['Docente', 'Orientador', 'Equipo Directivo'],
+  ver_listado_incidentes: ['Docente', 'Inspector', 'Orientador', 'Equipo Directivo'],
 
   // Punto 3: seguimientos / intervenciones (US-12, US-13)
-  ver_seguimientos:       ['Orientador'],
+  // VER: Orientador (gestiona) + Equipo Directivo (revisa para decidir cierre, US-12).
+  // AGREGAR/EDITAR: solo Orientador (no se solapa con el rol directivo).
+  ver_seguimientos:       ['Orientador', 'Equipo Directivo'],
   agregar_seguimientos:   ['Orientador'],
+
+  // Gestión de estado del incidente (US-12 / CU-11). Orientador y Equipo Directivo
+  // (un directivo puede ejercer también como orientador; criterio de aceptación US-12).
+  cambiar_estado_incidente: ['Orientador', 'Equipo Directivo'],
 
   // Punto 4: gestión de cuentas (US-03, US-04)
   crear_cuentas:          ['Administrador'],

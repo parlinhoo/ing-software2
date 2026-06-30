@@ -5,17 +5,14 @@ import minorIcon from '../assets/img/minor.png'
 import seriousIcon from '../assets/img/serious.png'
 import verySerious from '../assets/img/very_serious.png'
 import { SearchStudentComponent } from '../components/SearchStudentComponent.tsx'
-import { EmptyState } from '../components/EmptyState.tsx'
-import { SkeletonRow } from '../components/Skeleton.tsx'
 import { useIncidentFilters, type IncidentRow } from '../hooks/useIncidentFilters.ts'
 import { fetchIncidents, type IncidentAPI } from '../services/incidentService.ts'
-import { useAuth } from '../hooks/useAuth.ts'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { usePermissions } from '../hooks/usePermissions.ts'
 
 type Props = {
   onNew: () => void
   onDetail: (incidentId: string) => void
-  onNewUser?: () => void
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -26,10 +23,9 @@ const SEVERITY_LABEL: Record<string, string> = {
   mild: 'leve', severe: 'grave', very_severe: 'muy-grave', verysevere: 'muy-grave',
 }
 
+// Estado (clave backend) -> etiqueta usada por la tabla y el filtro
 const ESTADO_LABEL: Record<string, string> = {
-  abierto: 'Abierto',
-  en_seguimiento: 'En Seguimiento',
-  cerrado: 'Cerrado',
+  abierto: 'Abierto', en_seguimiento: 'En Seguimiento', cerrado: 'Cerrado',
 }
 
 function mapApiToRow(inc: IncidentAPI): IncidentRow {
@@ -43,7 +39,6 @@ function mapApiToRow(inc: IncidentAPI): IncidentRow {
     .join(', ')
   return {
     id: `I-${String(inc.incidentId).padStart(3, '0')}`,
-    rawId: String(inc.incidentId),
     fecha,
     lugar: inc.place,
     alumnos,
@@ -58,24 +53,39 @@ const GRAVEDAD_BADGE: Record<string, { src: string; label: string }> = {
   'muy-grave': { src: verySerious, label: 'Muy Grave' },
 }
 
-const ESTADO_BADGE: Record<string, { bg: string; color: string }> = {
-  'Abierto':        { bg: '#dcfce7', color: '#166534' },
-  'En Seguimiento': { bg: '#fef9c3', color: '#854d0e' },
-  'Cerrado':        { bg: '#e5e7eb', color: '#374151' },
-}
-
-export function IncidentListScreen({ onNew, onDetail, onNewUser }: Props) {
+export function IncidentListScreen({ onNew, onDetail }: Props) {
+  const { can, role } = usePermissions()
   const [incidents, setIncidents] = useState<IncidentRow[]>([])
   const [loading, setLoading] = useState(true)
-  const { canCreateIncident, canCreateUsers } = useAuth()
+  const [loadError, setLoadError] = useState(false)
+  const puedeCrear = can('crear_incidente')
+
+  // Toggle "Solo mis incidentes" — visible SOLO para Docente (explícito, no por descarte).
+  // El Inspector ya viene filtrado por el backend a sus propios incidentes,
+  // así que el toggle no aplica para él.
+  const mostrarToggleMios = role === 'Docente'
+  const [soloMios, setSoloMios] = useState(false)
+
+  // Carga (o recarga) el listado. Distingue lista vacía real de error de red:
+  // ante error marca loadError en vez de dejar la tabla muda con [].
+  const cargarIncidentes = useCallback(() => {
+    setLoading(true)
+    setLoadError(false)
+    fetchIncidents({ mine: soloMios })
+      .then(data => {
+        setIncidents(data.map(mapApiToRow))
+        setLoadError(false)
+      })
+      .catch(() => {
+        setIncidents([])
+        setLoadError(true)
+      })
+      .finally(() => setLoading(false))
+  }, [soloMios])
 
   useEffect(() => {
-    setLoading(true)
-    fetchIncidents()
-      .then(data => setIncidents(data.map(mapApiToRow)))
-      .catch(() => setIncidents([]))
-      .finally(() => setLoading(false))
-  }, [])
+    cargarIncidentes()
+  }, [cargarIncidentes])
 
   const _now = new Date()
   const hoy = `${String(_now.getDate()).padStart(2, '0')}/${String(_now.getMonth() + 1).padStart(2, '0')}/${_now.getFullYear()}`
@@ -98,14 +108,27 @@ export function IncidentListScreen({ onNew, onDetail, onNewUser }: Props) {
           <span className="contexto-texto">Pantalla Principal / Listado de Incidentes</span>
           <h1 className="titulo-principal">Panel de Gestión de Incidentes</h1>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          {canCreateUsers && onNewUser && (
-            <button className="btn-primario outline" onClick={onNewUser}>+ Crear Usuario</button>
-          )}
-          {canCreateIncident && (
-            <button className="btn-primario" onClick={onNew}>+ Nuevo Registro de Incidente</button>
-          )}
-        </div>
+        {mostrarToggleMios && (
+          <label className="toggle-mis-incidentes" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginRight: '1rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+            <input
+              type="checkbox"
+              checked={soloMios}
+              onChange={e => setSoloMios(e.target.checked)}
+            />
+            Solo mis incidentes
+          </label>
+        )}
+        <button
+          className="btn-secundario"
+          onClick={cargarIncidentes}
+          style={{ marginRight: '0.75rem' }}
+          title="Recargar listado"
+        >
+          ↻ Actualizar
+        </button>
+        {puedeCrear && (
+          <button className="btn-primario" onClick={onNew}>+ Nuevo Registro de Incidente</button>
+        )}
       </header>
 
       <section className="tarjetas-resumen">
@@ -182,22 +205,31 @@ export function IncidentListScreen({ onNew, onDetail, onNewUser }: Props) {
           </thead>
           <tbody>
             {loading ? (
-              Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={6} />)
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
+                  Cargando incidentes…
+                </td>
+              </tr>
+            ) : loadError ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: '#b91c1c' }}>
+                  No se pudieron cargar los incidentes.{' '}
+                  <button className="btn-link" onClick={cargarIncidentes} style={{ textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none', color: '#b91c1c' }}>
+                    Reintentar
+                  </button>
+                </td>
+              </tr>
             ) : incidentesFiltrados.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ padding: 0 }}>
-                  <EmptyState
-                    icon="🔍"
-                    title="No se encontraron incidentes"
-                    description="Ajusta los filtros o registra un nuevo incidente para comenzar."
-                  />
+                <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
+                  No se encontraron incidentes
                 </td>
               </tr>
             ) : (
               incidentesFiltrados.map(inc => {
                 const badge = GRAVEDAD_BADGE[inc.gravedad]
                 return (
-                  <tr key={inc.id} onClick={() => onDetail(inc.rawId)} style={{ cursor: 'pointer' }}>
+                  <tr key={inc.id} onClick={() => onDetail(inc.id)} style={{ cursor: 'pointer' }}>
                     <td>{inc.id}</td>
                     <td>{inc.fecha}</td>
                     <td>{inc.lugar}</td>
@@ -209,16 +241,7 @@ export function IncidentListScreen({ onNew, onDetail, onNewUser }: Props) {
                         </span>
                       )}
                     </td>
-                    <td>
-                      {(() => {
-                        const estadoBadge = ESTADO_BADGE[inc.estado]
-                        return estadoBadge ? (
-                          <span className="badge" style={{ background: estadoBadge.bg, color: estadoBadge.color }}>
-                            {inc.estado}
-                          </span>
-                        ) : inc.estado
-                      })()}
-                    </td>
+                    <td>{inc.estado}</td>
                   </tr>
                 )
               })

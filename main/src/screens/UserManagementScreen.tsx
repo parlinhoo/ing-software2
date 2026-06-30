@@ -1,182 +1,289 @@
-import { useEffect, useState, useCallback } from 'react'
-import { getUsers, toggleUserActive, type UserListItem } from '../services/userService.ts'
-import { SkeletonRow } from '../components/Skeleton.tsx'
-import { EmptyState } from '../components/EmptyState.tsx'
+import { useEffect, useState } from 'react'
+import {
+  getUsers, getRoles, createUser, editUser, toggleUserActive,
+  type UserData, type RoleData,
+} from '../services/userService.ts'
 
-type Props = {
-  onNewUser: () => void
-  onViewUser: (user: UserListItem) => void
-  onEditUser: (user: UserListItem) => void
-  refreshKey?: number
-}
-
-const ROL_STYLE: Record<string, { bg: string; color: string }> = {
-  'Administrador':    { bg: '#dbeafe', color: '#1e40af' },
-  'Equipo Directivo': { bg: '#dbeafe', color: '#1e40af' },
-  'Orientador':       { bg: '#f3e8ff', color: '#7e22ce' },
-  'Inspector':        { bg: '#fef9c3', color: '#854d0e' },
-  'Docente':          { bg: '#dcfce7', color: '#166534' },
-}
-
-export function UserManagementScreen({ onNewUser, onViewUser, onEditUser, refreshKey }: Props) {
-  const [users, setUsers] = useState<UserListItem[]>([])
+export function UserManagementScreen() {
+  const [users, setUsers]   = useState<UserData[]>([])
+  const [roles, setRoles]   = useState<RoleData[]>([])
   const [loading, setLoading] = useState(true)
-  const [query, setQuery] = useState('')
-  const [filtroRol, setFiltroRol] = useState('')
-  const [filtroActivo, setFiltroActivo] = useState<'' | 'true' | 'false'>('')
-  const [toggling, setToggling] = useState<string | null>(null)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    getUsers()
-      .then(setUsers)
-      .catch(() => setUsers([]))
-      .finally(() => setLoading(false))
-  }, [])
+  // Modo edición: id del usuario que se está editando en el modal (null = crear).
+  const [editingId, setEditingId] = useState<string | null>(null)
 
-  useEffect(() => { load() }, [load, refreshKey])
+  const [nombre, setNombre]         = useState('')
+  const [correo, setCorreo]         = useState('')
+  const [contrasena, setContrasena] = useState('')
+  const [rol, setRol]               = useState('')
 
-  const handleToggleActivo = async (u: UserListItem) => {
-    setToggling(u.id)
+  const [submitting, setSubmitting]   = useState(false)
+  const [formError, setFormError]     = useState<string | null>(null)
+  const [formSuccess, setFormSuccess] = useState<string | null>(null)
+  const [togglingId, setTogglingId]   = useState<string | null>(null)
+
+  // Estado del formulario de CREACIÓN (panel izquierdo).
+  const [nuevoNombre, setNuevoNombre]         = useState('')
+  const [nuevoCorreo, setNuevoCorreo]         = useState('')
+  const [nuevaContrasena, setNuevaContrasena] = useState('')
+  const [nuevoRol, setNuevoRol]               = useState('')
+  const [creando, setCreando]                 = useState(false)
+  const [crearError, setCrearError]           = useState<string | null>(null)
+  const [crearSuccess, setCrearSuccess]       = useState<string | null>(null)
+
+  const enEdicion = editingId !== null
+
+  // `inicial` controla el spinner "Cargando...": solo en la primera carga.
+  // Las recargas tras editar/desactivar refrescan los datos SIN colapsar la
+  // tabla, para no perder la posición de scroll (evita el salto hacia arriba).
+  async function cargarDatos(inicial = false) {
+    if (inicial) setLoading(true)
     try {
-      await toggleUserActive(u.id, !u.activo)
-      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, activo: !u.activo } : x))
+      const [u, r] = await Promise.all([getUsers(), getRoles()])
+      setUsers(u)
+      setRoles(r)
+      setNuevoRol(prev => prev || (r[0]?.nombre ?? ''))
     } catch {
-      load()
+      setCrearError('No se pudieron cargar los datos.')
     } finally {
-      setToggling(null)
+      if (inicial) setLoading(false)
     }
   }
 
-  const roles = [...new Set(users.map(u => u.rol))].sort()
+  useEffect(() => { cargarDatos(true) }, [])
 
-  const filtered = users.filter(u => {
-    const q = query.toLowerCase()
-    const matchQuery = !q || u.nombre.toLowerCase().includes(q) || u.correo.toLowerCase().includes(q)
-    const matchRol = !filtroRol || u.rol === filtroRol
-    const matchActivo = !filtroActivo || String(u.activo) === filtroActivo
-    return matchQuery && matchRol && matchActivo
-  })
+  // ---------- Edición (modal) ----------
+  function abrirEdicion(u: UserData) {
+    setEditingId(u.id)
+    setNombre(u.nombre)
+    setCorreo(u.correo)
+    setContrasena('')          // vacío = no cambiar contraseña
+    setRol(u.rol)
+    setFormError(null)
+    setFormSuccess(null)
+  }
 
-  const totalActivos = users.filter(u => u.activo).length
-  const totalDirectivos = users.filter(u => u.activo && (u.rol === 'Equipo Directivo' || u.rol === 'Administrador')).length
-  const totalDocentes = users.filter(u => u.activo && (u.rol === 'Docente' || u.rol === 'Inspector')).length
+  function cerrarEdicion() {
+    setEditingId(null)
+    setFormError(null)
+    setFormSuccess(null)
+  }
+
+  async function handleGuardarEdicion(e: React.FormEvent) {
+    e.preventDefault()
+    setFormError(null)
+    setFormSuccess(null)
+
+    if (!nombre.trim() || !correo.trim() || !rol) {
+      setFormError('Nombre, correo y rol son obligatorios.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      await editUser(editingId!, nombre.trim(), correo.trim(), rol, contrasena || undefined)
+      await cargarDatos()
+      cerrarEdicion()
+    } catch (err: any) {
+      setFormError(err?.response?.data?.error ?? 'No se pudo guardar el usuario.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // ---------- Creación (panel izquierdo) ----------
+  async function handleCrear(e: React.FormEvent) {
+    e.preventDefault()
+    setCrearError(null)
+    setCrearSuccess(null)
+
+    if (!nuevoNombre.trim() || !nuevoCorreo.trim() || !nuevaContrasena.trim() || !nuevoRol) {
+      setCrearError('Todos los campos son obligatorios.')
+      return
+    }
+
+    setCreando(true)
+    try {
+      await createUser(nuevoNombre.trim(), nuevoCorreo.trim(), nuevaContrasena, nuevoRol)
+      setCrearSuccess('Usuario creado correctamente.')
+      setNuevoNombre(''); setNuevoCorreo(''); setNuevaContrasena('')
+      setNuevoRol(roles[0]?.nombre ?? '')
+      await cargarDatos()
+    } catch (err: any) {
+      setCrearError(err?.response?.data?.error ?? 'No se pudo crear el usuario.')
+    } finally {
+      setCreando(false)
+    }
+  }
+
+  // ---------- Activar / desactivar ----------
+  async function handleToggleActivo(u: UserData) {
+    setTogglingId(u.id)
+    setFormSuccess(null)
+    try {
+      await toggleUserActive(u.id, !u.activo)
+      await cargarDatos()
+    } catch (err: any) {
+      setCrearError(err?.response?.data?.error ?? 'No se pudo cambiar el estado del usuario.')
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  const campoStyle = { marginBottom: '14px' }
+
+  const usuarioEditando = users.find(u => u.id === editingId)
 
   return (
     <div className="contenedor-principal">
       <header className="cabecera-vista">
         <div className="titulos-cabecera">
-          <span className="contexto-texto">Panel de Administración / Gestión de Usuarios</span>
-          <h1 className="titulo-principal">Gestión de Funcionarios</h1>
+          <span className="contexto-texto">Administración / Gestión de Usuarios</span>
+          <h1 className="titulo-principal">Gestión de Usuarios</h1>
         </div>
-        <button className="btn-primario" onClick={onNewUser}>+ Nuevo Funcionario</button>
       </header>
 
-      <section className="tarjetas-resumen">
-        <div className="tarjeta">Total activos: <strong>{totalActivos}</strong></div>
-        <div className="tarjeta">Directivos / Admin: <strong>{totalDirectivos}</strong></div>
-        <div className="tarjeta">Docentes / Inspectores: <strong>{totalDocentes}</strong></div>
-      </section>
+      <div className="grid-dos-columnas">
+        <section className="seccion-card">
+          <h2 className="titulo-seccion">Crear nuevo usuario</h2>
+          <form onSubmit={handleCrear}>
+            <div style={campoStyle}>
+              <label className="label-base">Nombre <span className="requerido">*</span></label>
+              <input className="input-base" value={nuevoNombre} onChange={e => setNuevoNombre(e.target.value)} placeholder="Nombre completo" />
+            </div>
+            <div style={campoStyle}>
+              <label className="label-base">Correo <span className="requerido">*</span></label>
+              <input className="input-base" type="email" value={nuevoCorreo} onChange={e => setNuevoCorreo(e.target.value)} placeholder="correo@colegio.cl" />
+            </div>
+            <div style={campoStyle}>
+              <label className="label-base">Contraseña <span className="requerido">*</span></label>
+              <input className="input-base" type="password" value={nuevaContrasena} onChange={e => setNuevaContrasena(e.target.value)} placeholder="Contraseña" />
+            </div>
+            <div style={campoStyle}>
+              <label className="label-base">Rol <span className="requerido">*</span></label>
+              <select className="select-base" value={nuevoRol} onChange={e => setNuevoRol(e.target.value)}>
+                {roles.map(r => <option key={r.id} value={r.nombre}>{r.nombre}</option>)}
+              </select>
+            </div>
 
-      <section className="seccion-tabla">
-        <h2 className="subtitulo">Listado de Funcionarios</h2>
+            {crearError && <span className="mensaje-error">{crearError}</span>}
+            {crearSuccess && <div className="alerta-exito" style={{ marginTop: 8 }}>{crearSuccess}</div>}
 
-        <div className="filtros-tabla">
-          <input
-            type="text"
-            className="input-base"
-            placeholder="Buscar por nombre o correo..."
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            style={{ flex: 1 }}
-          />
-          <select className="select-base" value={filtroRol} onChange={e => setFiltroRol(e.target.value)}>
-            <option value="">Todos los roles</option>
-            {roles.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-          <select className="select-base" value={filtroActivo} onChange={e => setFiltroActivo(e.target.value as any)}>
-            <option value="">Todos los estados</option>
-            <option value="true">Activos</option>
-            <option value="false">Inactivos</option>
-          </select>
-        </div>
+            <div className="acciones-formulario" style={{ marginTop: 16 }}>
+              <button type="submit" className="btn-primario" disabled={creando}>
+                {creando ? 'Creando...' : 'Crear Usuario'}
+              </button>
+            </div>
+          </form>
+        </section>
 
-        <table className="tabla-datos">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Correo</th>
-              <th>Rol</th>
-              <th>Estado</th>
-              <th style={{ textAlign: 'center' }}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} cols={5} />)
-            ) : filtered.length === 0 ? (
-              <tr>
-                <td colSpan={5} style={{ padding: 0 }}>
-                  <EmptyState icon="👤" title="No se encontraron funcionarios" description="Ajusta los filtros o registra un nuevo funcionario." />
-                </td>
-              </tr>
-            ) : (
-              filtered.map(u => {
-                const rolStyle = ROL_STYLE[u.rol] ?? { bg: '#f3f4f6', color: '#374151' }
-                return (
+        <section className="seccion-card">
+          <h2 className="titulo-seccion">Usuarios registrados ({users.length})</h2>
+          {loading ? (
+            <p style={{ color: '#6b7280' }}>Cargando usuarios...</p>
+          ) : (
+            <table className="tabla-datos tabla-sm">
+              <thead>
+                <tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr>
+              </thead>
+              <tbody>
+                {users.map(u => (
                   <tr key={u.id} style={{ opacity: u.activo ? 1 : 0.55 }}>
-                    <td style={{ fontWeight: 500 }}>{u.nombre}</td>
-                    <td style={{ color: '#6b7280', fontSize: '0.875rem' }}>{u.correo}</td>
+                    <td>{u.nombre}</td>
+                    <td>{u.correo}</td>
+                    <td><span className="badge-rol">{u.rol}</span></td>
                     <td>
-                      <span className="badge" style={{ background: rolStyle.bg, color: rolStyle.color }}>
-                        {u.rol}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="badge" style={{
-                        background: u.activo ? '#dcfce7' : '#fee2e2',
-                        color: u.activo ? '#166534' : '#991b1b',
-                      }}>
+                      <span
+                        className="badge"
+                        style={{
+                          background: u.activo ? '#dcfce7' : '#fee2e2',
+                          color: u.activo ? '#166534' : '#991b1b',
+                          fontWeight: 700,
+                        }}
+                      >
                         {u.activo ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', gap: '6px' }}>
                         <button
-                          className="btn-secundario"
-                          style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-                          onClick={() => onViewUser(u)}
-                        >
-                          Ver
-                        </button>
-                        <button
-                          className="btn-secundario"
-                          style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-                          onClick={() => onEditUser(u)}
+                          type="button"
+                          onClick={() => abrirEdicion(u)}
+                          style={{
+                            fontSize: '0.75rem', color: '#2563eb', background: 'transparent',
+                            border: '1px solid #2563eb', padding: '3px 10px', cursor: 'pointer',
+                          }}
                         >
                           Editar
                         </button>
                         <button
-                          className="btn-secundario"
-                          style={{
-                            padding: '4px 10px', fontSize: '0.8rem',
-                            color: u.activo ? '#dc2626' : '#166534',
-                            borderColor: u.activo ? '#fca5a5' : '#86efac',
-                          }}
+                          type="button"
                           onClick={() => handleToggleActivo(u)}
-                          disabled={toggling === u.id}
+                          disabled={togglingId === u.id}
+                          style={{
+                            fontSize: '0.75rem',
+                            color: u.activo ? '#ef4444' : '#16a34a',
+                            background: 'transparent',
+                            border: `1px solid ${u.activo ? '#ef4444' : '#16a34a'}`,
+                            padding: '3px 10px', cursor: 'pointer',
+                          }}
                         >
-                          {toggling === u.id ? '...' : u.activo ? 'Desactivar' : 'Activar'}
+                          {togglingId === u.id ? '...' : (u.activo ? 'Desactivar' : 'Activar')}
                         </button>
                       </div>
                     </td>
                   </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </section>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      </div>
+
+      {/* Modal de edición: se abre centrado, sin importar la fila pulsada. */}
+      {enEdicion && (
+        <div className="modal-overlay" onClick={() => !submitting && cerrarEdicion()}>
+          <div className="modal-content" style={{ textAlign: 'left', maxWidth: '480px' }} onClick={e => e.stopPropagation()}>
+            <h2 className="titulo-seccion" style={{ marginTop: 0 }}>
+              Editar usuario{usuarioEditando ? `: ${usuarioEditando.nombre}` : ''}
+            </h2>
+            <form onSubmit={handleGuardarEdicion}>
+              <div style={campoStyle}>
+                <label className="label-base">Nombre <span className="requerido">*</span></label>
+                <input className="input-base" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Nombre completo" />
+              </div>
+              <div style={campoStyle}>
+                <label className="label-base">Correo <span className="requerido">*</span></label>
+                <input className="input-base" type="email" value={correo} onChange={e => setCorreo(e.target.value)} placeholder="correo@colegio.cl" />
+              </div>
+              <div style={campoStyle}>
+                <label className="label-base">
+                  Contraseña <span style={{ color: '#6b7280', fontWeight: 400 }}>(dejar en blanco para no cambiarla)</span>
+                </label>
+                <input className="input-base" type="password" value={contrasena} onChange={e => setContrasena(e.target.value)} placeholder="••••••••" />
+              </div>
+              <div style={campoStyle}>
+                <label className="label-base">Rol <span className="requerido">*</span></label>
+                <select className="select-base" value={rol} onChange={e => setRol(e.target.value)}>
+                  {roles.map(r => <option key={r.id} value={r.nombre}>{r.nombre}</option>)}
+                </select>
+              </div>
+
+              {formError && <span className="mensaje-error">{formError}</span>}
+              {formSuccess && <div className="alerta-exito" style={{ marginTop: 8 }}>{formSuccess}</div>}
+
+              <div className="acciones-formulario" style={{ marginTop: 20, justifyContent: 'flex-end' }}>
+                <button type="button" className="btn-secundario" onClick={cerrarEdicion} disabled={submitting}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primario" disabled={submitting}>
+                  {submitting ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
